@@ -27,6 +27,17 @@ PM (Orchestrator) — stays light, delegates everything
 └── PM runs truth condition check → Milestone checkpoint
 ```
 
+## ⚠️ Continuous Execution Rule
+
+Within a milestone, DO NOT stop to ask the human for permission between tasks or between waves. Execute task → review → merge → next task → next wave → until the milestone is complete. The only stop point is the **Milestone Checkpoint** where the human signs off.
+
+Specifically, do NOT ask:
+- "Should I continue to the next task?"
+- "Wave 2 is complete. Should I proceed to Wave 3?"
+- "Should I start the verification wave?"
+
+Just do it. The human approved the wave plan in Phase 3. Execute it.
+
 ## Task Loop (for each task)
 
 **Handoff to worker:**
@@ -65,6 +76,20 @@ PM (Orchestrator) — stays light, delegates everything
 - PM stays at 30-40% context utilization. Delegates everything.
 - If PM context exceeds ~60%, start a fresh session: re-read CLAUDE.md + STATE.md + DECISIONS.md + LEARNINGS.md.
 - All state lives in files, never in context. If every session crashed right now, could you resume from files alone?
+
+## 🎭 Playwright E2E Tests (Non-Negotiable)
+
+Every milestone's verification wave MUST include Playwright E2E tests covering that milestone's truth conditions. This is not optional — it is a gate requirement.
+
+The QA worker in the verification wave must:
+1. Write Playwright tests that verify each truth condition as a real user would (browser, clicks, form fills, navigation).
+2. Tests must run headless in CI and locally.
+3. If any truth condition cannot be verified with a Playwright test (e.g., pure backend), write an API-level integration test instead — but default to Playwright for anything user-facing.
+4. All Playwright tests must pass before the milestone checkpoint is presented to the human.
+
+If the project does not yet have Playwright configured, the FIRST task of the first verification wave is "Set up Playwright with initial config, browser install, and one smoke test that loads the app." Every subsequent verification wave adds tests.
+
+A milestone cannot pass its checkpoint if its truth conditions are not covered by automated tests — Playwright for UI flows, integration tests for backend-only flows.
 
 ## Milestone Checkpoint (after each milestone)
 
