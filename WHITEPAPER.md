@@ -8,11 +8,11 @@
 
 The emergence of AI coding agents — tools like Claude Code, Codex, and similar systems that can autonomously write, test, and deploy software — has created a gap between what these tools *can* do and what they *reliably* do. Left unstructured, AI agents produce inconsistent results: they drift from specifications, accumulate context that degrades their output quality, skip security reviews in favor of shipping speed, and make product decisions that should belong to humans.
 
-This paper presents a framework for organizing AI coding agents into a structured, multi-role team that operates autonomously within defined boundaries. The framework addresses five core challenges: maintaining output quality across long projects (context management), ensuring security and architectural consistency (adversarial review), keeping humans in control of product decisions without micromanaging implementation (graduated autonomy), building AI-powered products using AI agents (recursive AI integration), and accumulating institutional knowledge across sessions (persistent learning).
+This paper presents a framework for organizing AI coding agents into a structured, multi-role team that operates autonomously within defined boundaries. The framework addresses six core challenges: maintaining output quality across long projects (context management), ensuring security and architectural consistency (adversarial review), keeping humans in control of product decisions without micromanaging implementation (graduated autonomy), building AI-powered products using AI agents (recursive AI integration), accumulating institutional knowledge across sessions (persistent learning), and recovering cleanly when fundamental assumptions break (pivot protocols).
 
-The framework was developed through iterative design and draws on concepts from the GSD (Get Shit Done) framework, the Ralph Wiggum autonomous iteration pattern, and established software engineering practices adapted for the unique constraints of AI agent orchestration.
+The framework was developed through iterative design and draws on concepts from the GSD (Get Shit Done) framework, the Ralph Wiggum autonomous iteration pattern, Claude Code's native Agent Teams feature, and established software engineering practices adapted for the unique constraints of AI agent orchestration.
 
-The result is a playbook that a technical product owner can hand to a single Claude Code instance. The instance then self-organizes into a team of specialized agents and builds a complete, production-ready application — from idea to deployment — with human involvement limited to strategic decision points.
+The result is a playbook that a technical product owner can hand to a Claude Code instance. The instance then self-organizes into a team of specialized roles — using Agent Teams, sub-agents via the Task tool, or manual session management — and builds a complete, production-ready application from idea to deployment, with human involvement limited to strategic decision points.
 
 ---
 
@@ -45,26 +45,28 @@ Every element of the framework described in this paper exists because it solves 
 | Practice | Failure Mode It Prevents |
 |----------|--------------------------|
 | Written product specification with human review | Specification drift |
-| Fresh sub-agent contexts per task | Context rot |
+| Fresh worker contexts per task (Agent Teams, sub-agents, or manual sessions) | Context rot |
 | Multi-role team with Security override authority | Security blindness |
 | Explicit autonomy boundaries | Decision creep |
 | Persistent learnings file | Knowledge loss |
+| Persistent decision log | Decision relitigating across sessions |
 | Atomic task sizing | Context rot (per-task) |
 | Truth conditions | Verification theater (tasks "done" but product broken) |
 | Human gates at strategic points | Loss of product control |
-| Wave-based execution | Dependency conflicts and blocked work |
+| Wave-based execution with file-independence checks | Dependency conflicts, parallel write conflicts |
+| Recovery & pivot protocol | Grinding against broken assumptions |
 
 ---
 
 ## 2. The Multi-Agent Team Model
 
-### 2.1 Why Roles Matter in a Single Instance
+### 2.1 Why Roles Matter
 
-The framework assigns six distinct roles to agents operating within a single Claude Code instance: PM (Project Manager), Architect, Developer, QA (Quality Assurance), Security, and DevOps. This may seem artificial — after all, it is one AI instance talking to itself. But the role separation serves a critical function: it creates **adversarial review**.
+The framework assigns six distinct roles: PM (Project Manager), Architect, Developer, QA (Quality Assurance), Security, and DevOps. These roles can be executed by teammates in Claude Code's native Agent Teams feature, by sub-agents via the Task tool, or by a single instance switching hats between manual sessions. The execution model is secondary — what matters is the role separation, because it creates **adversarial review**.
 
-When a single agent writes code and reviews it, the review is performative. The agent already "agrees" with its own implementation. But when the same instance is instructed to adopt the Security role and review its own Developer work with explicit instructions to look for vulnerabilities, the quality of the review materially improves. The role creates a different evaluation lens.
+When a single agent writes code and reviews it, the review is performative. The agent already "agrees" with its own implementation. But when a separate teammate — or the same instance explicitly instructed to adopt the Security role — reviews Developer work with instructions to look for vulnerabilities, the quality of the review materially improves. The role creates a different evaluation lens. Agent Teams makes this even more effective: the Security reviewer is a genuinely separate context that never saw the implementation reasoning, only the output.
 
-This is analogous to how a senior engineer can simultaneously hold the perspective of "person who wrote this code" and "person reviewing a pull request" — but only if they consciously switch modes. The role assignments force this mode-switching.
+This is analogous to how a senior engineer can simultaneously hold the perspective of "person who wrote this code" and "person reviewing a pull request" — but only if they consciously switch modes. The role assignments force this mode-switching. Agent Teams enforces it structurally.
 
 ### 2.2 Role Definitions
 
@@ -110,29 +112,39 @@ Context rot is the most technically significant challenge in long-running AI age
 
 Research and practitioner experience (particularly from the GSD framework community) suggests that agent output quality begins degrading noticeably after 40-50% context utilization and becomes unreliable above 70%.
 
-### 3.2 The Fresh Sub-Agent Model
+### 3.2 The Fresh Delegation Model
 
 The framework addresses context rot with a principle borrowed from the GSD framework: **the orchestrator stays light; workers get fresh context.**
 
-The PM (orchestrator) does not write code. For each task, the PM spawns a fresh sub-agent — a new invocation with a clean, full context window. The sub-agent receives only what it needs for the specific task: the task description, relevant source files, the project instruction file (CLAUDE.md), and the relevant section of the architecture document. The sub-agent does its work, commits, reports results back to the PM, and its context is discarded.
+The PM (orchestrator) does not write code. For each task, the PM delegates to a worker with a clean, full context window. The worker receives only what it needs for the specific task: the task description, relevant source files, the project instruction file (CLAUDE.md), the relevant section of the architecture document, the learnings file, and the decision log. The worker does its work, commits, reports results back to the PM, and its context is discarded.
 
 This means the 50th task in a project gets the same quality context as the 1st task. The PM's own context stays light because it holds only orchestration state — task queues, progress tracking, decisions — not implementation details.
 
+The delegation model can be implemented at three levels of Claude Code capability:
+
+**Agent Teams** (preferred) — Claude Code's native multi-agent feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). The PM acts as team lead and spawns teammates for each role. Each teammate gets its own full context window and loads the project's CLAUDE.md, MCP servers, and skills automatically. Teammates execute in parallel within a wave. This is the highest-capability option: genuine parallel execution with separate context windows. Key trade-off: token cost scales linearly with team size, so spawning five teammates for a CSS fix is wasteful. The inverted review default (lightweight review for most tasks, full review pipeline for sensitive changes) becomes an economic decision as well as a velocity one.
+
+**Sub-agents via Task tool** (fallback) — The PM uses Claude Code's built-in Task tool to spawn sub-agents programmatically within a single session. Each sub-agent gets a fresh context window, does one task, and reports back. Sub-agents can only communicate with the PM, not with each other. Simpler than Agent Teams but still automated.
+
+**Manual session restarts** (last resort) — The PM closes the current session and starts fresh for each task. The PM re-reads state files at the start of each session. This is the most manual approach but works when the other options are unavailable.
+
 ### 3.3 Persistent State via Files
 
-If each sub-agent has a fresh context, how does the team maintain continuity? The answer is files. All state that needs to persist across sessions and sub-agents is written to the filesystem:
+If each worker has a fresh context, how does the team maintain continuity? The answer is files. All state that needs to persist across sessions and workers is written to the filesystem:
 
-**`.planning/STATE.md`** tracks the orchestrator's state: the current milestone, completed tasks, in-progress tasks, blocked tasks, wave plans, truth conditions, and key decisions. When the PM's context gets heavy or a new session begins, the PM reads this file to restore its working state. Nothing is lost because the source of truth is on disk, not in context.
+**`.planning/STATE.md`** tracks the orchestrator's state: the current milestone, completed tasks, in-progress tasks, blocked tasks, wave plans, truth conditions, and key decisions. When the PM's context gets heavy or a new session begins, the PM reads this file to restore its working state. Nothing is lost because the source of truth is on disk, not in context. The file always starts with a "Current Status" section (no more than 20 lines) so the PM can scan it in seconds.
 
-**`.planning/LEARNINGS.md`** accumulates team knowledge across iterations — an idea borrowed from the Ralph pattern's `AGENTS.md`. After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, workarounds applied. This file is included in every sub-agent's context, so the team benefits from past experience.
+**`.planning/LEARNINGS.md`** accumulates team knowledge across iterations — an idea borrowed from the Ralph pattern's `AGENTS.md`. After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, workarounds applied. Entries are tagged by category (`[ORM]`, `[AI]`, `[AUTH]`, etc.) for searchability. This file is included in every worker's context, so the team benefits from past experience.
 
-**`CLAUDE.md`** is the project instruction file — the golden rules, tech stack, architecture summary, and team structure. It is the first thing every sub-agent reads. It defines the invariants that all agents must respect regardless of what specific task they are working on.
+**`.planning/DECISIONS.md`** logs settled questions. When the PM resolves a conflict, the human makes a key decision, or the team agrees to descope something, it gets logged here with the date, who decided, and the reasoning. This prevents relitigating settled questions across context resets — a common failure mode where a fresh session re-raises a question that was already answered three sessions ago, wasting both time and human attention.
 
-These three files form the team's **institutional memory**. They replace the context window as the source of truth and enable the team to operate across arbitrarily many sessions without degradation.
+**`CLAUDE.md`** is the project instruction file — the golden rules, tech stack, architecture summary, and team structure. It is the first thing every worker reads. It defines the invariants that all agents must respect regardless of what specific task they are working on.
+
+These four files form the team's **institutional memory**. They replace the context window as the source of truth and enable the team to operate across arbitrarily many sessions without degradation. Critically, this persistence layer becomes even more important with Agent Teams, where `/resume` and `/rewind` do not restore teammates — the files are the only continuity mechanism.
 
 ### 3.4 The 60% Rule
 
-The framework specifies that if the PM's context utilization exceeds approximately 60%, it should start a new session. The PM reads CLAUDE.md, STATE.md, and LEARNINGS.md, and continues orchestrating from where it left off. This is a proactive measure — it prevents degradation rather than recovering from it.
+The framework specifies that if the PM's context utilization exceeds approximately 60%, it should start a new session. The PM reads CLAUDE.md, STATE.md, LEARNINGS.md, and DECISIONS.md, and continues orchestrating from where it left off. This is a proactive measure — it prevents degradation rather than recovering from it.
 
 In practice, this means the PM might start 3-5 sessions over the course of building a full application, while spawning dozens of sub-agents. The sessions are cheap (a few minutes of re-reading state); the alternative (degraded orchestration quality) is expensive.
 
@@ -144,7 +156,7 @@ In practice, this means the PM might start 3-5 sessions over the course of build
 
 For the fresh sub-agent model to work, each task must be small enough for a single sub-agent to complete without context degradation. The framework defines "atomic" tasks with specific constraints:
 
-- Each task should touch three or fewer files in its core change (tests and documentation don't count toward this limit).
+- Each task should touch three or fewer logical units in its core change, where a unit is a set of cohesive files for one concern (for example, a route handler plus its migration plus its test). This prevents tasks from sprawling across unrelated parts of the codebase.
 - The task description plus relevant source files plus CLAUDE.md should fit within 50% of the context window. If it doesn't, the task needs to be split.
 - Each task does one thing: add an endpoint, write a migration, build a component. Compound tasks like "build the whole authentication system" must be decomposed.
 - Each task must be independently testable. If you cannot write a test for a task in isolation, the task is too vague.
@@ -157,7 +169,7 @@ The anti-pattern is "Implement user authentication" as a single task. The correc
 
 Within each milestone, the PM organizes tasks into **waves** based on their dependency relationships. A wave is a set of tasks that are independent of each other — they can be executed in any order (or in parallel) without conflicts. A wave starts only after the previous wave is fully complete.
 
-This concept addresses two problems. First, it prevents dependency conflicts — a developer sub-agent trying to build an API endpoint before the database schema exists. Second, it creates natural verification points — the end of each wave is an opportunity to run tests and verify that the foundation is solid before building on top of it.
+This concept addresses three problems. First, it prevents dependency conflicts — a developer trying to build an API endpoint before the database schema exists. Second, it creates natural verification points — the end of each wave is an opportunity to run tests and verify that the foundation is solid before building on top of it. Third, with Agent Teams enabling genuine parallel execution, the wave structure prevents file-level write conflicts: no two tasks in the same wave may modify the same file, because concurrent writes result in last-write-wins data loss. The PM must verify file independence when organizing waves.
 
 The final wave of every milestone is always a verification wave: QA writes end-to-end tests and validates acceptance criteria; Security reviews the code merged during the milestone.
 
@@ -170,6 +182,7 @@ The framework introduces **truth conditions**, borrowed from the GSD framework's
 - "A new user can register, verify email, and log in."
 - "If the AI API is down, the user sees a graceful fallback message."
 - "An unauthorized user cannot access the AI endpoint."
+- "Tier 1 AI prompts have at least 5 eval test cases that pass (expected input produces expected output schema)."
 
 These are not implementation tasks — they are *outcomes*. QA verifies each truth condition independently at the milestone checkpoint. If a truth condition fails, the milestone is not complete, regardless of how many tasks are checked off.
 
@@ -243,7 +256,7 @@ Each phase produces artifacts that feed into the next phase. The spec feeds the 
 
 **Phase 3: Task Breakdown & Planning** — Define milestones with truth conditions, decompose requirements into atomic GitHub issues, organize issues into waves. Gate: PM verifies completeness; human reviews the plan.
 
-**Phase 4: Development** — Execute wave by wave, milestone by milestone, using fresh sub-agents. Cross-agent review on every merge. Milestone checkpoints with truth condition verification. Gate: PM verifies all milestones complete; each milestone requires human sign-off.
+**Phase 4: Development** — Execute wave by wave, milestone by milestone, using the delegation model (Agent Teams, sub-agents, or manual sessions). Cross-role review on every merge — lightweight by default (PM checks architecture and security in one pass), full 3-reviewer pipeline for sensitive changes (auth, AI, data models, API contracts). Milestone checkpoints with truth condition verification. Gate: PM verifies all milestones complete; each milestone requires human sign-off. An Integration Gate verifies all milestones work together end-to-end.
 
 **Phase 5: Quality & Security Hardening** — Comprehensive security audit (including AI-specific risks), brainstorming session for edge cases, performance review. Gate: Human reviews security findings.
 
@@ -255,11 +268,15 @@ Each phase produces artifacts that feed into the next phase. The spec feeds the 
 
 Gates serve two purposes: quality assurance and human control. The framework assigns gates to either the human or the PM agent based on the type of decision involved.
 
-**Human gates** are placed where the decision is *strategic*: approving the product spec (Phase 1), approving the architecture (Phase 2), accepting the security posture (Phase 5), and authorizing deployment (Phase 6). These are decisions that require product judgment, risk assessment, or business context that the agent does not have.
+**Human gates** are placed where the decision is *strategic*: approving the product spec (Phase 1), approving the architecture (Phase 2), approving the task plan (Phase 3), accepting the security posture (Phase 5), and authorizing deployment (Phase 6). These are decisions that require product judgment, risk assessment, or business context that the agent does not have.
 
-**Agent (PM) gates** are placed where the check is *procedural*: verifying that all inputs are collected (Phase 0), confirming all requirements have issues (Phase 3), validating that all milestones are complete (Phase 4). These are checklist verifications that the PM can perform autonomously.
+**Agent (PM) gates** are placed where the check is *procedural*: verifying that all inputs are collected (Phase 0), validating that all milestones are complete (Phase 4). These are checklist verifications that the PM can perform autonomously.
+
+**The Integration Gate** is a distinct gate type used after all milestones are individually complete. It verifies that the milestones work together end-to-end — catching integration issues that per-milestone checkpoints miss. Authentication working in isolation is different from authentication working with the AI service layer, which is different from both working under load.
 
 The human can always override an agent gate — but the expectation is that they won't need to if the checklist is complete.
+
+**Waiting at gates**: When the PM is blocked at a human gate, it may begin read-only preparation for the next phase (drafting the wave plan while waiting for architecture approval, outlining deployment steps while waiting for the hardening gate) but must not commit artifacts or begin implementation until the gate clears. Pre-work is logged in STATE.md so it is visible when the human returns. This prevents idle time without creating irreversible work.
 
 ---
 
@@ -293,13 +310,19 @@ All AI API calls must go through a centralized service layer — never directly 
 
 AI integration introduces security risks that traditional web applications do not face:
 
-- **Prompt injection** — malicious user input that manipulates the AI's behavior by injecting instructions into the prompt.
+- **Prompt injection** — malicious user input that manipulates the AI's behavior by injecting instructions into the prompt. The framework requires concrete defenses: delimiter tokens separating system instructions from user input, a classification step that screens user input before it reaches the main prompt, structured message formats that make injection boundaries clear, and output validation that rejects responses not matching the expected schema.
 - **System prompt exposure** — the AI revealing its system prompt in response to crafted queries.
 - **Data leakage** — the AI including sensitive data from other users' contexts in its responses.
 - **Cost abuse** — a malicious user triggering expensive API calls at scale.
 - **PII in prompts** — personal data being sent to third-party AI providers.
 
-The framework requires the Security agent to audit all AI integration points for these specific risks during Phase 5.
+The framework requires the Security role to audit all AI integration points for these specific risks during Phase 5, using a severity classification (Critical and High block MVP launch; Medium and Low are logged for post-launch).
+
+### 7.5 Structured Output and Caching
+
+For Tier 1 features where the AI's output feeds into application logic (not just displayed to the user), the framework requires structured output handling: JSON mode or function calling to guarantee parseable responses, schema validation on every AI response before it enters the application, and typed interfaces that the rest of the codebase can rely on.
+
+AI response caching is an architectural concern, not an optimization afterthought. The Architect identifies cacheable queries during Phase 2 (queries where the same input reliably produces an acceptable output), implements caching at the service layer, and defines TTL per use case. A recommendation engine might cache for hours; a real-time analysis endpoint might not cache at all. Cost estimation — approximate calls per user per day, cost per call, projected monthly spend — is part of the architecture review.
 
 ---
 
@@ -342,15 +365,41 @@ The framework addresses this with `.planning/LEARNINGS.md`, inspired by the Ralp
 - **Conventions established**: "All date formatting uses dayjs with UTC."
 - **Workarounds**: "The CI runner doesn't have enough memory for the full E2E suite; split into shards."
 
-This file is included in every sub-agent's context. Over time, it becomes a growing body of project-specific knowledge that prevents repeated mistakes and accelerates development.
+Entries are tagged by category (`[ORM]`, `[AI]`, `[AUTH]`, `[TESTING]`, `[UI]`, `[INFRA]`, etc.) so workers can search for relevant learnings instead of reading the entire file. This file is included in every worker's context. Over time, it becomes a growing body of project-specific knowledge that prevents repeated mistakes and accelerates development.
 
 The key insight from the Ralph community is that AI coding tools automatically read instruction files. By structuring learnings in a file that agents read at session start, the knowledge transfer is automatic — no human intervention required.
 
+### 9.3 The Decision Log
+
+A subtler form of knowledge loss is **decision loss** — the team re-raises a question that was already settled in a previous session. "Should we use Prisma or Drizzle?" was debated, decided, and logged in session 3. By session 8, a fresh context has no memory of that decision and escalates it to the human again. Multiply this across dozens of decisions and the human's time is consumed by relitigating rather than directing.
+
+`.planning/DECISIONS.md` captures every significant decision: who made it, when, and the reasoning. The rule is simple: before raising a question to the human, check DECISIONS.md. If it has already been decided, execute the decision. If circumstances have changed and the decision should be revisited, reference the original entry when escalating so the human has full context.
+
 ---
 
-## 10. Post-MVP Evolution
+## 10. Recovery & Pivot Protocol
 
-### 10.1 The Ralph Loop Pattern
+### 10.1 When Assumptions Break
+
+The playbook assumes forward progress, but sometimes a fundamental assumption turns out to be wrong mid-build. The database schema cannot support a key feature. The AI API's rate limits make the core workflow unviable. A critical third-party service does not work as expected. These are not bugs — they are design flaws that no amount of debugging will fix.
+
+Without a defined recovery process, the team grinds against the broken assumption: retrying the same approach, generating increasingly convoluted workarounds, or silently descoping the feature. A pivot at milestone v0.2 is cheap. A pivot at v0.5 is expensive.
+
+### 10.2 The Protocol
+
+The framework defines explicit triggers and a structured process:
+
+**Triggers**: A truth condition has failed three or more times with no viable fix path. A core technical assumption is proven wrong (not a bug — a design flaw). An external dependency becomes unavailable, too expensive, or too limited.
+
+**Process**: The PM halts the current wave — no new tasks start. The PM writes a short pivot proposal covering what is broken, why it cannot be fixed within the current architecture, two to three alternative approaches with trade-offs, and a recommended path forward. The PM escalates to the human with the proposal. This is always a human decision. If approved, the PM updates ARCHITECTURE.md, logs the pivot in DECISIONS.md, re-plans affected milestones in STATE.md, and revises affected truth conditions. If denied, the human provides an alternative direction and the PM logs it.
+
+The goal is to fail fast and pivot cleanly rather than accumulating technical debt against a broken foundation.
+
+---
+
+## 11. Post-MVP Evolution
+
+### 11.1 The Ralph Loop Pattern
 
 The Ralph Wiggum technique — named after the stubbornly persistent Simpsons character — is an autonomous iteration pattern where the agent runs in a loop: pick a task, execute it, verify the result, repeat. Each iteration starts with fresh context. The loop continues until all tasks are complete or a safety limit is reached.
 
@@ -362,7 +411,7 @@ The framework deliberately does not use this pattern during MVP development. The
 
 However, the framework documents Ralph as a post-v1.0 tool for specific use cases: bug fix sprints (give it 20 well-defined bugs, let it work overnight), refactoring passes (convert all class components to functional components), and test coverage drives (write missing tests for all files in a directory). These are tasks with clear success criteria, low risk, and no product judgment required.
 
-### 10.2 Autonomous Pipelines
+### 11.2 Autonomous Pipelines
 
 Post-MVP, the framework supports automated agent-driven maintenance pipelines:
 
@@ -375,15 +424,15 @@ These pipelines rely on a mature test suite as their safety net. They are explic
 
 ---
 
-## 11. Constructing a Playbook from These Principles
+## 12. Constructing a Playbook from These Principles
 
 The principles described in this paper can be assembled into a concrete, executable playbook. Here is how:
 
-### 11.1 Define Inputs
+### 12.1 Define Inputs
 
 Start by listing everything the human must provide before work begins: the project idea, a repository, any API keys (AI providers, external services), and the production domain. Everything the agent needs to begin should be collected upfront to prevent interruptions during execution.
 
-### 11.2 Write the Phase Structure
+### 12.2 Write the Phase Structure
 
 Organize the development lifecycle into sequential phases with explicit gates. Each phase should produce specific, named artifacts that feed into the next phase. Assign each gate to either the human (strategic decisions) or the PM agent (procedural checklists).
 
@@ -392,17 +441,17 @@ A recommended structure:
 1. **Initialization** (agent gate) — inputs collected, repo scaffolded, folder structure created.
 2. **Product Specification** (human gate) — comprehensive spec written through iterative dialogue, requirements extracted and numbered.
 3. **Architecture & Technical Design** (human gate) — tech stack decided, data model designed, API contracts defined, AI architecture specified, instruction file written.
-4. **Task Breakdown** (agent gate) — milestones defined with truth conditions, issues created and sized atomically, waves planned.
-5. **Development** (agent gate per milestone, human sign-off per milestone) — wave-by-wave execution with fresh sub-agents and cross-agent review.
+4. **Task Breakdown** (human gate) — milestones defined with truth conditions, issues created and sized atomically, waves planned.
+5. **Development** (agent gate per milestone, human sign-off per milestone, integration gate across milestones) — wave-by-wave execution with fresh worker contexts and cross-role review.
 6. **Quality & Security Hardening** (human gate) — comprehensive security audit, edge case brainstorming, AI-specific security review.
 7. **Deployment** (human gate) — production scripts, domain setup, pre-launch checklist, demo.
 8. **Iteration** (ongoing) — retrospective, backlog, continuous improvement.
 
-### 11.3 Define the Team
+### 12.3 Define the Team
 
 List each role with its responsibilities, authority, and boundaries. Establish the conflict resolution hierarchy (PM resolves minor conflicts, human resolves major ones, Security overrides Developer by default). Create a phase ownership table mapping which role leads each phase.
 
-### 11.4 Build the Instruction File Template
+### 12.4 Build the Instruction File Template
 
 The project instruction file (CLAUDE.md or equivalent) is the agent's operating manual. It should include:
 
@@ -419,29 +468,30 @@ The project instruction file (CLAUDE.md or equivalent) is the agent's operating 
   - "Fresh context for every task."
   - "Truth conditions over task completion."
   - "Log learnings."
+  - "Log decisions."
 
-### 11.5 Define the Execution Model
+### 12.5 Define the Execution Model
 
-Specify how tasks move from "to do" to "done":
+Specify the delegation tier: Agent Teams (preferred), sub-agents via Task tool (fallback), or manual session restarts (last resort). Then define how tasks move from "to do" to "done":
 
-1. PM assigns task to a sub-agent with fresh context.
-2. Sub-agent creates a branch, implements, tests, commits.
-3. Sub-agent reports results.
-4. Appropriate reviewers (Architect, Security, QA) review.
-5. If changes requested, a new sub-agent gets the feedback and fixes.
-6. All reviewers approve, PM merges, state updated.
+1. PM assigns task to a worker (teammate, sub-agent, or fresh session) with role-specific instructions and fresh context.
+2. Worker creates a branch, implements, tests, commits.
+3. Worker reports results via files (commit, LEARNINGS.md update, structured summary).
+4. Review: lightweight by default (PM checks architecture + security in one pass), full pipeline for sensitive changes (separate Architect, Security, QA workers).
+5. If changes requested, a new worker gets the feedback and fixes.
+6. Review passes, PM merges, STATE.md updated.
 
-Define wave rules: independent tasks in the same wave, waves execute sequentially, final wave is verification.
+Define wave rules: independent tasks in the same wave, no two tasks in the same wave modify the same file, waves execute sequentially, final wave is verification.
 
-Define context management rules: PM stays under 60% context, sub-agents get only what they need, state persists in files.
+Define context management rules: PM stays under 60% context, workers get only what they need (task, CLAUDE.md, relevant ARCHITECTURE.md section, LEARNINGS.md, DECISIONS.md), state persists in files.
 
-### 11.6 Define the Autonomy Boundary
+### 12.6 Define the Autonomy Boundary
 
 Be explicit about what the team decides independently and what requires human consultation. Write both lists. The "do not stop for" list is as important as the "must stop for" list — it gives the agent confidence to act.
 
 Use the senior engineer heuristic: if they would just do it, the agent should just do it. If they would ask the product owner, the agent should ask.
 
-### 11.7 Add AI Integration Patterns (If Applicable)
+### 12.7 Add AI Integration Patterns (If Applicable)
 
 If the product includes AI features, define:
 
@@ -449,15 +499,18 @@ If the product includes AI features, define:
 - The AI service layer pattern.
 - Model selection per tier.
 - Prompt management approach (prompts as code, versioned, reviewed).
+- Structured output handling for Tier 1 features (JSON mode, function calling, schema validation).
 - Fallback strategy for every AI feature.
-- Cost tracking schema.
-- AI-specific security audit checklist.
+- Cost estimation (approximate calls per user per day, cost per call, projected monthly spend).
+- AI response caching strategy (cacheable queries, TTL per use case).
+- Prompt evaluation baseline (at least 5 test cases per Tier 1 prompt during development, expanded post-MVP).
+- AI-specific security audit checklist (prompt injection defenses, system prompt exposure, data leakage, cost abuse, PII handling).
 
-### 11.8 Add Protocols for External Dependencies
+### 12.8 Add Protocols for External Dependencies
 
 Define how the team handles new services (Service Keys Protocol), new tools (MCP Server and Skills Acquisition), and new dependencies (standard libraries are fine, unusual dependencies require justification).
 
-### 11.9 Add Appendices
+### 12.9 Add Appendices
 
 Include reference material that the team will need repeatedly:
 
@@ -466,33 +519,35 @@ Include reference material that the team will need repeatedly:
 - Commit message conventions.
 - Future automation opportunities (post-MVP).
 
-### 11.10 Review and Trim
+### 12.10 Review and Trim
 
 Go through the entire playbook and apply the design principle from Section 1.3: every practice must trace to a specific failure mode. If a section exists because "good engineering practice" but does not address context rot, specification drift, security blindness, decision creep, or knowledge loss, consider removing it. The playbook should be as short as possible while preventing every failure mode it targets.
 
 ---
 
-## 12. Conclusion
+## 13. Conclusion
 
 The framework described in this paper is not about making AI agents follow a process. It is about designing the right constraints so that AI agents produce reliable, secure, production-quality software while maintaining human control over product direction.
 
 The key ideas are:
 
-1. **Roles create adversarial review.** A single agent reviewing its own work is theater. Explicit role-switching creates genuine evaluation from different perspectives.
+1. **Roles create adversarial review.** A single agent reviewing its own work is theater. Explicit role-switching — or better, separate Agent Teams teammates — creates genuine evaluation from different perspectives.
 
-2. **Fresh context prevents rot.** The orchestrator stays light; workers get clean context. State lives in files, not in conversation history.
+2. **Fresh context prevents rot.** The orchestrator stays light; workers get clean context. State lives in files, not in conversation history. Agent Teams, sub-agents via the Task tool, and manual session restarts are three tiers of the same principle.
 
 3. **Truth conditions prevent false completion.** Checking tasks off a list does not guarantee the product works. Testing observable outcomes does.
 
 4. **Autonomy needs explicit boundaries.** Define what the team decides independently *and* what requires human input. Both lists are essential.
 
-5. **Knowledge must persist.** Learnings files give the team institutional memory across sessions. The team gets smarter over time instead of starting from zero.
+5. **Knowledge must persist.** Learnings files give the team institutional memory across sessions. Decision logs prevent relitigating settled questions. The team gets smarter over time instead of starting from zero.
 
 6. **Security must be structurally privileged.** Without an explicit override hierarchy, the agent's bias toward shipping will override security concerns. Make security the default winner.
 
-7. **Every practice must earn its place.** If a process element doesn't prevent a specific, named failure mode, it is overhead. Remove it.
+7. **Recovery must be defined before it's needed.** When a fundamental assumption breaks, the team needs a protocol — halt, propose alternatives, escalate to the human — not ad hoc improvisation.
 
-These principles are tool-agnostic. While the reference playbook was designed for Claude Code, the concepts apply to any AI coding agent that supports autonomous execution, sub-agent spawning, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
+8. **Every practice must earn its place.** If a process element doesn't prevent a specific, named failure mode, it is overhead. Remove it.
+
+These principles are tool-agnostic. While the reference playbook was designed for Claude Code and takes advantage of its native Agent Teams feature, the concepts apply to any AI coding agent that supports autonomous execution, task delegation, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
 
 The goal is not to replace human judgment with AI process. It is to free human judgment for the decisions that actually require it — product vision, risk tolerance, user experience — while letting a well-structured AI team handle everything else.
 
@@ -503,6 +558,8 @@ The goal is not to replace human judgment with AI process. It is to free human j
 - **GSD (Get Shit Done) Framework** — by TÂCHES (glittercowboy). Open-source meta-prompting and context engineering system for Claude Code. Key contributions to this framework: fresh sub-agent contexts, aggressive atomicity, wave-based execution, goal-backward verification. GitHub: `glittercowboy/get-shit-done`
 
 - **Ralph Wiggum Technique** — by Geoffrey Huntley. Autonomous iteration pattern for AI coding agents. Key contribution: the concept of a bash loop that runs agents repeatedly with fresh context until verification passes, and the learnings file pattern for persistent knowledge. GitHub: `ghuntley/how-to-ralph-wiggum`
+
+- **Claude Code Agent Teams** — by Anthropic. Native multi-agent orchestration feature for Claude Code (research preview). Key contribution: first-class support for parallel teammate execution with independent context windows, shared task management, and inter-agent messaging. Enables the delegation model described in this paper to run on real infrastructure rather than manual session management. Source: `code.claude.com/docs/en/agent-teams`
 
 - **Claude Code Best Practices** — by Anthropic. Official guidance on using Claude Code effectively, including headless mode, task management, and CLAUDE.md conventions. Source: `docs.anthropic.com`
 

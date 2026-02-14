@@ -1,0 +1,98 @@
+# Phase 4: Development
+
+You are the **PM / Team Lead**. Build the application milestone by milestone using wave-based execution, fresh context per task, and truth conditions for verification.
+
+Read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md` first. Check where you left off.
+
+$ARGUMENTS
+
+## Execution Model
+
+```
+PM (Orchestrator) — stays light, delegates everything
+│
+├── Wave N: Dispatch tasks to workers (teammates, sub-agents, or fresh sessions)
+│   ├── Worker A (Developer) → Task → commit → report back
+│   ├── Worker B (Developer) → Task → commit → report back
+│   └── Worker C (DevOps)    → Task → commit → report back
+│
+├── PM verifies wave complete, runs tests, updates STATE.md
+│
+├── ... repeat for each wave ...
+│
+├── Final Wave: Verification
+│   ├── Worker (QA) → E2E tests, acceptance criteria
+│   └── Worker (Security) → Security review
+│
+└── PM runs truth condition check → Milestone checkpoint
+```
+
+## Task Loop (for each task)
+
+**Handoff to worker:**
+- Task description + acceptance criteria
+- Relevant source files (ONLY what's needed)
+- CLAUDE.md (golden rules, tech stack)
+- Relevant section of ARCHITECTURE.md
+- .planning/LEARNINGS.md (or relevant excerpts)
+- .planning/DECISIONS.md
+
+**Worker executes:**
+1. Creates feature branch (`feat/<issue>`)
+2. Implements the feature
+3. Writes/updates tests (unit + integration)
+4. Runs ALL tests (not just new ones)
+5. If tests fail → fixes before proceeding
+6. Updates documentation if behavior changed
+7. Commits with conventional commit message
+
+**Worker reports back:**
+- Summary of what was done
+- Files changed
+- Tests added/modified
+- Learnings appended to .planning/LEARNINGS.md (if any)
+
+**Review:**
+- **DEFAULT (most tasks):** PM does a lightweight review — quick architecture + security check in one pass.
+- **SENSITIVE tasks (auth, AI, data handling, API contracts):** Spawn separate Architect, Security, and QA reviewers.
+- If changes requested → new worker gets feedback and fixes.
+- Review passes → PM merges to `develop`, updates STATE.md, moves issue to Done.
+
+**When human input is needed during build (e.g., design choices, scope clarifications), always use `AskUserQuestion` with clear options instead of presenting tables or long lists.**
+
+## Context Management Rules
+
+- PM stays at 30-40% context utilization. Delegates everything.
+- If PM context exceeds ~60%, start a fresh session: re-read CLAUDE.md + STATE.md + DECISIONS.md + LEARNINGS.md.
+- All state lives in files, never in context. If every session crashed right now, could you resume from files alone?
+
+## Milestone Checkpoint (after each milestone)
+
+1. Run the full test suite.
+2. QA verifies each truth condition independently.
+3. Architect confirms codebase matches ARCHITECTURE.md.
+4. Security reviews any new attack surface.
+5. Update STATE.md: mark milestone complete, archive details, set up next milestone.
+6. **Present to human for sign-off** — each milestone requires human approval. Once approved, immediately begin the next milestone's first wave (do not wait for another command).
+7. Reassess tooling: any new MCP servers or skills needed?
+
+## Integration Gate (after ALL milestones)
+
+After the final milestone, run a cross-cutting verification:
+- Full E2E smoke test: registration → core feature → AI workflow → admin panel → logout.
+- Coverage meets or exceeds 80%.
+- No architectural drift.
+- All milestone truth conditions still pass together.
+
+Once the integration gate passes, log: **"Phase 4 complete — all milestones verified. Moving to Quality & Security Hardening."**
+
+## If Something Breaks Fundamentally
+
+If a truth condition fails 3+ times, or a core assumption is proven wrong, invoke the recovery protocol: halt the wave, write a pivot proposal (what's broken, why, 2-3 alternatives), escalate to human. Run `/pivot` for the full protocol.
+
+## ➡️ Auto-Chain / Auto-Proceed
+
+This phase has **two gate types**:
+
+1. **🧑 Human gate per milestone**: After each milestone checkpoint, **STOP and wait** for human sign-off. Once approved, immediately begin the next milestone's first wave — do not wait for another `/build` command.
+2. **🤖 Agent (PM) integration gate**: After ALL milestones pass the integration gate, **do not stop**. Immediately begin executing the next phase by reading and following `.claude/commands/harden-mvpb.md`.
