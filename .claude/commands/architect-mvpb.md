@@ -64,7 +64,7 @@ Review the architecture. Identify MCP servers and skill files that would help. E
 
 ## Step 4: CLAUDE.md
 
-Write the project instruction file with: project overview, team structure, tech stack, architecture reference, 23 golden rules, testing strategy, deployment info, repository links. This file is read every session — it must be concise and authoritative.
+Write the project instruction file with: project overview, team structure, tech stack, architecture reference, 24 golden rules (including the mandatory parallel dispatch rule), testing strategy, deployment info, repository links. This file is read every session — it must be concise and authoritative.
 
 ## Step 5: README.md
 

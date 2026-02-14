@@ -9,23 +9,42 @@ $ARGUMENTS
 ## Execution Model
 
 ```
-PM (Orchestrator) — stays light, delegates everything
+PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Teams
 │
-├── Wave N: Dispatch tasks to workers (teammates, sub-agents, or fresh sessions)
-│   ├── Worker A (Developer) → Task → commit → report back
-│   ├── Worker B (Developer) → Task → commit → report back
-│   └── Worker C (DevOps)    → Task → commit → report back
+├── TeamCreate → set up the team at the start of the milestone
 │
-├── PM verifies wave complete, runs tests, updates STATE.md
+├── Wave N: Spawn ALL teammates simultaneously
+│   ├── Teammate A (Developer) → Task → commit → report back  ┐
+│   ├── Teammate B (Developer) → Task → commit → report back  ├── spawned in one message
+│   └── Teammate C (DevOps)    → Task → commit → report back  ┘
+│
+├── PM collects results via SendMessage, verifies wave, updates STATE.md
 │
 ├── ... repeat for each wave ...
 │
-├── Final Wave: Verification
-│   ├── Worker (QA) → E2E tests, acceptance criteria
-│   └── Worker (Security) → Security review
-│
+├── Final Wave: Verification (QA + Security spawned simultaneously)
+│   ├── Teammate (QA) → E2E tests, acceptance criteria         ┐
+│   └── Teammate (Security) → Security review                  ├── spawned in one message
+│                                                               ┘
 └── PM runs truth condition check → Milestone checkpoint
 ```
+
+## Agent Teams Parallel Dispatch (Non-Negotiable)
+
+You MUST use Claude Code's native Agent Teams to parallelize wave execution. This is the single most important execution rule in this playbook.
+
+**Required workflow:**
+1. At the start of each milestone, call `TeamCreate` to set up the team.
+2. For each wave, spawn all teammates simultaneously — use multiple `Task` tool calls with `team_name` in a **single message**. Each teammate gets one task, a name matching its role (e.g., `developer-1`, `developer-2`, `qa`, `security`), and the handoff context described in the Task Loop below.
+3. Teammates execute in parallel with their own independent context windows, CLAUDE.md, and MCP servers.
+4. PM monitors via `SendMessage` and collects results. When all teammates report back, verify the wave and move to the next.
+
+**What NOT to do:**
+- Do NOT spawn Teammate A, wait for it to finish, then spawn Teammate B. This is sequential execution disguised as delegation.
+- Do NOT do tasks yourself. You are the orchestrator — delegate everything via Agent Teams.
+- Do NOT fall back to the Task tool without `team_name` (sub-agents) when Agent Teams is available. Agent Teams gives teammates persistent identity, their own CLAUDE.md, and message-based coordination. Use it.
+
+**Single-task waves are fine.** If a wave has only 1 task, one teammate is correct. But if a wave has 2+ tasks, all teammates MUST be spawned in the same message.
 
 ## ⚠️ Continuous Execution Rule
 

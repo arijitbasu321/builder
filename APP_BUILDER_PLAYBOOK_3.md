@@ -272,6 +272,7 @@ Milestone v0.2 — Core Feature + AI
 
 **Wave rules:**
 - Within a wave, tasks are **independent** — they can run in parallel (or at minimum, in any order without conflicts).
+- **Parallel dispatch via Agent Teams is mandatory, not optional.** When a wave has multiple independent tasks, the PM MUST use Claude Code's native Agent Teams (`TeamCreate` + `Task` with `team_name`) to spawn all teammates simultaneously in a single message. Executing independent tasks sequentially when they could run in parallel is a process failure. The whole point of wave planning is to enable parallelism — use it.
 - **No two tasks in the same wave may modify the same file.** When using Agent Teams or parallel sub-agents, concurrent writes to the same file cause last-write-wins conflicts. The PM must verify file independence when organizing waves. If two tasks both need to modify a shared file, they go in sequential waves.
 - A wave only starts after the previous wave is **fully complete and verified**.
 - The PM is responsible for analyzing task dependencies and organizing waves.
@@ -309,11 +310,22 @@ The difference is critical. Completing tasks doesn't guarantee the product works
 
 ### Translating the Delegation Model to Claude Code
 
-The delegation model described above — PM orchestrates, workers get fresh context — can be implemented at three levels of Claude Code capability. Use the most capable option available:
+The delegation model described above — PM orchestrates, workers get fresh context — can be implemented at three levels of Claude Code capability. **Always use the most capable option available — parallel execution is not optional.**
 
-**Tier 1 — Agent Teams (preferred)**
+**Tier 1 — Agent Teams (REQUIRED when available)**
 
-Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in Claude Code settings. The PM acts as the team lead and spawns teammates for each role (Developer, QA, Security, etc.). Each teammate gets its own full context window and loads the project's CLAUDE.md, MCP servers, and skills automatically. The PM dispatches tasks using the built-in task management tools (TeamCreate, TaskCreate, SendMessage). Teammates execute in parallel within a wave, commit their work, and the PM synthesizes results.
+Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in Claude Code settings. The PM acts as the team lead and spawns teammates for each role (Developer, QA, Security, etc.). Each teammate gets its own full context window and loads the project's CLAUDE.md, MCP servers, and skills automatically.
+
+> **This is not a suggestion — it is a requirement.** When Agent Teams is enabled, the PM MUST use it to dispatch wave tasks in parallel. Spawning one teammate at a time and waiting for it to finish before spawning the next defeats the entire purpose of wave-based execution. If a wave has 3 independent tasks, spawn 3 teammates simultaneously in a single message. The PM's job during a wave is to dispatch all teammates, coordinate via `SendMessage`, and monitor for completion — not to babysit one task at a time.
+
+**Concrete Agent Teams workflow:**
+1. `TeamCreate` — create the team at the start of each milestone (or reuse an existing one).
+2. `TaskCreate` — create tasks in the team's shared task list for each issue in the wave.
+3. `Task` tool with `team_name` — spawn one teammate per task. **All Task tool calls for a wave go in a single message** so they launch in parallel. Give each teammate a descriptive `name` (e.g., `developer-auth`, `developer-api`, `devops-ci`).
+4. Teammates execute independently — they have their own context window, read CLAUDE.md automatically, create branches, implement, test, commit.
+5. Teammates report back via `SendMessage` to the PM. PM receives messages automatically.
+6. PM verifies the wave: pulls branches, runs full test suite, merges to `develop`, updates STATE.md.
+7. Repeat for next wave. Shut down teammates via `SendMessage` (type: `shutdown_request`) when the milestone is done.
 
 Key considerations for Agent Teams:
 - **Token cost scales linearly** — a 5-teammate team burns ~5x the tokens of a single session. This reinforces the inverted review default: spawn 3 reviewers for sensitive changes, but don't spin up a full team for a CSS fix.
@@ -323,7 +335,7 @@ Key considerations for Agent Teams:
 
 **Tier 2 — Sub-agents via Task tool (fallback)**
 
-If Agent Teams isn't enabled, the PM can use Claude Code's built-in Task tool to spawn sub-agents programmatically within a single session. Each sub-agent gets a fresh context window, does one task, and reports back to the PM. Sub-agents can only communicate with the parent (PM) — not with each other. This is simpler than Agent Teams but still automated: the PM stays running as the orchestrator and dispatches tasks without manual session restarts.
+If Agent Teams isn't enabled, the PM MUST use the Task tool to spawn parallel sub-agents for independent tasks within a wave. Each sub-agent gets a fresh context window, does one task, and reports back to the PM. Sub-agents can only communicate with the parent (PM) — not with each other. This is simpler than Agent Teams but still automated: the PM stays running as the orchestrator and dispatches tasks without manual session restarts. **Crucially, the PM must launch multiple Task tool calls in a single message to achieve parallelism** — launching them sequentially negates the benefit.
 
 **Tier 3 — Manual session restarts (last resort)**
 
@@ -721,10 +733,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture.
 17. **Leverage MCP servers and skills.** Use approved MCP servers and downloaded skills to produce the best possible output. Revisit tooling needs at each milestone checkpoint — if a new MCP server or skill would help, propose it.
 18. **Respect the team hierarchy.** Security overrides Developer. PM resolves minor conflicts. Major conflicts go to the human. No agent bypasses the review process.
 19. **Fresh context for every task.** PM delegates tasks to workers (teammates, sub-agents, or fresh sessions) with clean context. Never accumulate implementation details in the orchestrator. If PM context exceeds 60%, start a new session and re-read CLAUDE.md + `.planning/STATE.md` + `.planning/DECISIONS.md` + `.planning/LEARNINGS.md`.
-20. **Atomic tasks only.** Every task should touch ≤ 3 logical units (a unit = cohesive files for one concern, e.g., route + handler + migration), fit in ≤ 50% of context, and be testable in isolation. If it's too big, split it.
-21. **Truth conditions over task completion.** A milestone is done when its truth conditions pass, not when its tasks are checked off. Always verify observable outcomes.
-22. **Log learnings.** After every task, append useful discoveries to `.planning/LEARNINGS.md` — patterns, gotchas, conventions, workarounds. Tag entries by category (`[ORM]`, `[AI]`, `[AUTH]`, etc.). The team's future selves will thank you.
-23. **Log decisions.** When the PM resolves a conflict, the human makes a call, or something is descoped, log it in `.planning/DECISIONS.md`. Check this file before escalating — if it's already been decided, execute. Don't relitigate.
+20. **Parallelize aggressively via Agent Teams.** When a wave has multiple independent tasks, the PM MUST use Claude Code's native Agent Teams (`TeamCreate` + `Task` with `team_name`) to spawn all teammates simultaneously in a single message. Never execute independent tasks sequentially. The PM's job during a wave is to launch all teammates at once, then coordinate via `SendMessage` and monitor for completion. Sequential dispatch of parallel-safe work is a process failure.
+21. **Atomic tasks only.** Every task should touch ≤ 3 logical units (a unit = cohesive files for one concern, e.g., route + handler + migration), fit in ≤ 50% of context, and be testable in isolation. If it's too big, split it.
+22. **Truth conditions over task completion.** A milestone is done when its truth conditions pass, not when its tasks are checked off. Always verify observable outcomes.
+23. **Log learnings.** After every task, append useful discoveries to `.planning/LEARNINGS.md` — patterns, gotchas, conventions, workarounds. Tag entries by category (`[ORM]`, `[AI]`, `[AUTH]`, etc.). The team's future selves will thank you.
+24. **Log decisions.** When the PM resolves a conflict, the human makes a call, or something is descoped, log it in `.planning/DECISIONS.md`. Check this file before escalating — if it's already been decided, execute. Don't relitigate.
 
 ## Testing
 - **Unit tests**: [framework, e.g., Jest / pytest]
@@ -887,48 +900,50 @@ PM presents the wave plan to the human for review. Human approves or adjusts.
 
 ### Goal
 
-Build the application milestone by milestone, using the delegation model (Agent Teams, sub-agents, or manual sessions — see *Translating the Delegation Model to Claude Code*), wave-based execution for parallelism, and truth conditions for verification.
+Build the application milestone by milestone, using Claude Code's native **Agent Teams** for parallel execution, wave-based planning, and truth conditions for verification. See *Translating the Delegation Model to Claude Code* for the full tier breakdown — Agent Teams is the required default.
 
 ### Execution Model
 
 ```
-PM (Orchestrator) — stays light, delegates everything
+PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Teams
 │
-├── Wave 1: PM spawns sub-agents for each independent task
-│   ├── Sub-agent A (Developer) → Task #1 → commit → report back
-│   ├── Sub-agent B (Developer) → Task #2 → commit → report back
-│   └── Sub-agent C (DevOps)    → Task #3 → commit → report back
+├── TeamCreate → set up the team at the start of the milestone
 │
-├── PM verifies Wave 1 complete, runs tests, updates STATE.md
+├── Wave 1: PM spawns ALL teammates simultaneously (one message)
+│   ├── Teammate A (Developer) → Task #1 → commit → report back  ┐
+│   ├── Teammate B (Developer) → Task #2 → commit → report back  ├── spawned together
+│   └── Teammate C (DevOps)    → Task #3 → commit → report back  ┘
 │
-├── Wave 2: PM spawns sub-agents for dependent tasks
-│   ├── Sub-agent D (Developer) → Task #4 → commit → report back
-│   └── Sub-agent E (Developer) → Task #5 → commit → report back
+├── PM collects results via SendMessage, verifies wave, updates STATE.md
+│
+├── Wave 2: PM spawns teammates for next wave's tasks (same pattern)
+│   ├── Teammate D (Developer) → Task #4 → commit → report back  ┐
+│   └── Teammate E (Developer) → Task #5 → commit → report back  ┘
 │
 ├── ... (repeat for each wave)
 │
-├── Final Wave: Verification
-│   ├── Sub-agent (QA) → E2E tests, acceptance criteria
-│   └── Sub-agent (Security) → Security review
+├── Final Wave: Verification (spawned simultaneously)
+│   ├── Teammate (QA) → E2E tests, acceptance criteria   ┐
+│   └── Teammate (Security) → Security review             ┘
 │
 └── PM runs truth condition check → Milestone checkpoint
 ```
 
-### Sub-Agent Task Loop (Each Task)
+### Teammate Task Loop (Each Task)
 
-For **each task**, the PM spawns a fresh sub-agent with a clean context:
+For **each task**, the PM spawns a teammate via Agent Teams with a clean context:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  PM prepares the sub-agent handoff:                              │
+│  PM prepares the teammate handoff (Task tool with team_name):    │
 │  - Task description + acceptance criteria                        │
 │  - Relevant source files (ONLY what's needed for this task)      │
-│  - CLAUDE.md (golden rules, tech stack)                          │
+│  - CLAUDE.md (loaded automatically by Agent Teams)               │
 │  - Relevant section of ARCHITECTURE.md                           │
 │  - .planning/LEARNINGS.md (or relevant excerpts)                 │
 │  - .planning/DECISIONS.md                                        │
 │                                                                  │
-│  Sub-agent executes (with fresh, full context):                  │
+│  Teammate executes (with fresh, independent context window):     │
 │  1. Creates a feature branch (feat/<issue>)                      │
 │  2. Implements the feature                                       │
 │  3. Writes/updates tests (unit + integration)                    │
@@ -937,7 +952,7 @@ For **each task**, the PM spawns a fresh sub-agent with a clean context:
 │  6. Updates documentation if behavior changed                    │
 │  7. Commits with conventional commit message                     │
 │                                                                  │
-│  Sub-agent reports back to PM:                                   │
+│  Teammate reports back to PM via SendMessage:                    │
 │  - Summary of what was done                                      │
 │  - Files changed                                                 │
 │  - Tests added/modified                                          │
@@ -948,9 +963,9 @@ For **each task**, the PM spawns a fresh sub-agent with a clean context:
 │  8. DEFAULT (most tasks): PM does a lightweight review —         │
 │     quick architecture + security check in the same context.     │
 │  9. SENSITIVE tasks (auth, AI, data handling, API contracts):    │
-│     PM spawns separate Architect, Security, and QA sub-agents.   │
-│ 10. If reviewer requests changes → PM spawns Developer           │
-│     sub-agent with the feedback (no human needed)                │
+│     PM spawns separate Architect, Security, and QA teammates.    │
+│ 10. If reviewer requests changes → PM sends feedback to a        │
+│     Developer teammate via SendMessage (no human needed)         │
 │ 11. Review passes → PM merges to develop                         │
 │ 12. PM updates .planning/STATE.md and moves issue to "Done"      │
 └──────────────────────────────────────────────────────────────────┘
