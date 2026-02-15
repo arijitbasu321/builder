@@ -100,6 +100,7 @@ Before proposing any skill for installation, apply the full security vetting pro
 - Reject skills with broad permission requests (unrestricted shell, writes outside project, undisclosed network calls)
 - Reject embedded executable payloads
 - Verify repo provenance (commit history, contributors, license, maintenance)
+- **Two-pass review for Tier 2 skills**: After the Architect's initial vetting, the Security agent must independently review every Tier 2 skill before it is proposed. Security checks for subtle bias attacks (steering toward insecure patterns), external reference manipulation (URLs that could change), scope creep (instructions affecting unrelated areas), and trojan instructions (buried contradictions). If Security flags concerns, the skill is rejected.
 
 **3d. Present to Human:**
 Present MCP servers and skills as separate lists. For each item: name, source URL, trust tier, what it covers, security assessment, and fallback if denied. Install approved items, document denied items with reasons.
