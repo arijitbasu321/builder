@@ -63,7 +63,8 @@ After collecting all inputs, confirm the AI API key is available (ask the human 
 /
 ├── .planning/
 │   ├── STATE.md            # Orchestrator state
-│   ├── LEARNINGS.md        # Team knowledge
+│   ├── LEARNINGS.md        # Active team knowledge (current + previous milestone)
+│   ├── LEARNINGS_ARCHIVE.md # Archived learnings from older milestones
 │   └── DECISIONS.md        # Decision log
 ├── docs/
 │   ├── PRODUCT_SPEC.md

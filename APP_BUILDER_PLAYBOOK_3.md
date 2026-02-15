@@ -237,7 +237,7 @@ CONCERN: bcrypt rounds set to 10 — may need tuning for production
 The PM should reject verbose reports and ask the teammate to reformat. No code snippets, no explanations of approach, no stack traces in report-backs. If the PM needs details, it asks a targeted follow-up or delegates a review.
 4. **PM maintains a lightweight state file** (`.planning/STATE.md`) that tracks: current milestone, completed tasks, in-progress tasks, blocked tasks, and key decisions. This is the orchestrator's memory — it persists across sessions. **Structure rule**: STATE.md always starts with a "Current Status" section (≤20 lines): current milestone, current wave, blocked items, next action. Completed milestones move to an "Archive" section at the bottom. The PM reads this first every session — it must be scannable in seconds. **Per-wave updates**: After each wave completes (not just each milestone), the PM updates STATE.md with a brief wave summary: which tasks completed, which files were touched, and whether the wave's acceptance criteria passed. This ensures STATE.md reflects progress at wave granularity, so a mid-milestone reset loses nothing.
 5. **If the PM's context gets heavy** (above ~60%), it should start a new session, re-read CLAUDE.md, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md`, and continue. No work is lost because state is in files, not in context. **Natural reset points** (prefer resetting at these boundaries rather than mid-wave): (a) wave boundaries — after all teammates in a wave have reported back and STATE.md is updated; (b) between milestones — after verification passes and before planning the next milestone; (c) before verification waves — the verification wave benefits most from a fresh PM context, since it requires clear-headed assessment of truth conditions. Resetting mid-wave is safe but suboptimal: the PM must re-read STATE.md to reconstruct which teammates have reported back and which are still outstanding.
-6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied. This file is included in every teammate's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them.
+6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied. This file is included in every teammate's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them. **Archiving rule**: LEARNINGS.md is included in every teammate's context, so its size directly impacts context budgets. At each milestone checkpoint, the PM archives entries from milestones older than the current and previous one into `.planning/LEARNINGS_ARCHIVE.md`. The active file keeps only entries from the current milestone and the one before it. If an archived entry is still actively relevant (e.g., a persistent ORM gotcha), promote it to a "Pinned" section at the top of LEARNINGS.md instead of re-adding it. Teammates who need historical context can search the archive, but it is never included in routine handoffs.
 
 ```markdown
 ## Example: .planning/LEARNINGS.md entries
@@ -444,7 +444,8 @@ The AI API key is provided upfront. However, as the architecture takes shape, th
 /
 ├── .planning/
 │   ├── STATE.md                # Orchestrator state (milestones, waves, truth conditions)
-│   ├── LEARNINGS.md            # Accumulated team knowledge across iterations
+│   ├── LEARNINGS.md            # Active team knowledge (current + previous milestone)
+│   ├── LEARNINGS_ARCHIVE.md    # Archived learnings from older milestones
 │   └── DECISIONS.md            # Decision log — settled questions that must not be relitigated
 ├── docs/
 │   ├── PRODUCT_SPEC.md
@@ -1123,6 +1124,10 @@ If any truth condition fails, the **milestone is not complete** — regardless o
 - Any inter-agent conflicts that were resolved (and how).
 - Any unresolved conflicts that need human input.
 - Tooling reassessment — Are there MCP servers or skills that would help with the next milestone?
+
+**Step 3b: Prune LEARNINGS.md**
+
+Move entries from milestones older than the previous one into `.planning/LEARNINGS_ARCHIVE.md`. Keep only entries from the current and immediately prior milestone in the active file. If any archived entry is still frequently relevant (referenced in the last 2+ milestones), promote it to a "Pinned" section at the top of LEARNINGS.md — these are permanent project conventions, not transient learnings.
 
 **Step 4: PM presents the report to the human** and waits for sign-off before starting the next milestone.
 
