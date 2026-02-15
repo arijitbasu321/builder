@@ -28,6 +28,11 @@ $ARGUMENTS
 - "Email service?" (header: "Email") — Options: "Resend (Recommended)", "SendGrid", "None for MVP"
 - "CI/CD?" (header: "CI/CD") — Options: "GitHub Actions (Recommended)", "Vercel Auto-deploy", "GitLab CI"
 
+**Round 5 — Deployment operations (only if self-managed hosting — skip for Vercel/Railway):**
+- "Database hosting?" (header: "DB Hosting") — Options: "Self-hosted in Docker alongside app (Recommended for VPS)", "Managed service (Neon/Supabase/RDS)", "Platform-provided"
+- "Local development setup?" (header: "Local Dev") — Options: "Native npm run dev + Docker for DB only (Recommended)", "Full Docker Compose for everything", "Native everything"
+- "Env var management?" (header: "Env Vars") — Options: ".env files per environment (Recommended)", "Platform secrets manager", "Vault/SOPS"
+
 After collecting choices, summarize the full stack and ask for final confirmation. Justify each choice briefly.
 
 > ⚠️ If any choice requires an API key not yet provided, follow the Service Keys Protocol: explain what's needed, why, propose a fallback if denied, wait for confirmation.
@@ -56,7 +61,15 @@ Create `docs/ARCHITECTURE.md` with:
     - AI Response Caching (cacheable queries, TTL per use case)
     - Cost Estimation (~X calls/user/day × ~Y cost = ~Z monthly)
     - Token & Cost Tracking schema
-11. **Production Deployment Architecture** — Domain, SSL, deploy/rollback scripts, zero-downtime strategy, health checks, backups
+11. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infrastructure task MUST reference this section. Include:
+    - **Service map**: Every container/process, its internal port, its exposed port, and how services communicate (Docker network, localhost, etc.)
+    - **Port mapping table**: Internal vs external ports. Which ports are exposed to the host vs Docker-internal only. All scripts and health checks must use the correct (external) port.
+    - **Env var flow**: For each env var: where it's defined, how it reaches the container (build arg, runtime env, compose env_file, .env auto-load), and whether it's build-time or runtime. For Next.js: which vars need `NEXT_PUBLIC_` prefix, which are server-only, which are needed at build time for static generation / Prisma generate.
+    - **SSL/TLS termination**: Where SSL terminates (reverse proxy, app, CDN). Bootstrapping sequence if using certbot (HTTP-only config first → obtain cert → swap to HTTPS config). All external domains that need CSP whitelisting (AI APIs, CDNs, auth providers).
+    - **Reverse proxy config**: Upstream mapping, health check endpoint and port, CSP headers with all external domains, security headers.
+    - **Startup/dependency order**: Which services must start first. Docker Compose `depends_on` with health checks.
+    - **Migration strategy**: How and when database migrations run (separate container, entrypoint script, CI step). Must work on first deploy and subsequent deploys.
+    - **Seed strategy**: How seed scripts connect (through reverse proxy on external port vs direct internal port vs docker exec).
 
 ## Step 3: Tooling Augmentation (MCP Servers & Skills)
 
@@ -64,7 +77,7 @@ Review the architecture. Identify MCP servers and skill files that would help. E
 
 ## Step 4: CLAUDE.md
 
-Write the project instruction file with: project overview, team structure, tech stack, architecture reference, 24 golden rules (including the mandatory parallel dispatch rule), testing strategy, deployment info, repository links. This file is read every session — it must be concise and authoritative.
+Write the project instruction file with: project overview, team structure, tech stack, architecture reference, 27 golden rules (including infrastructure validation, defensive scripting, and API error handling rules), testing strategy, deployment info, repository links. This file is read every session — it must be concise and authoritative.
 
 ## Step 5: README.md
 

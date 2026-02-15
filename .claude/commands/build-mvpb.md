@@ -22,10 +22,10 @@ PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Te
 │
 ├── ... repeat for each wave ...
 │
-├── Final Wave: Verification (QA + Security spawned simultaneously)
-│   ├── Teammate (QA) → E2E tests, acceptance criteria         ┐
-│   └── Teammate (Security) → Security review                  ├── spawned in one message
-│                                                               ┘
+├── Final Wave: Verification (3 teammates, spawned simultaneously)
+│   ├── Teammate (QA) → Truth Condition Tests                   ┐
+│   ├── Teammate (Security) → Security review                   ├── spawned in one message
+│   └── Teammate (QA-Exploratory) → Exploratory testing         ┘
 └── PM runs truth condition check → Milestone checkpoint
 ```
 
@@ -66,6 +66,7 @@ Just do it. The human approved the wave plan in Phase 3. Execute it.
 - Relevant section of ARCHITECTURE.md
 - .planning/LEARNINGS.md (or relevant excerpts)
 - .planning/DECISIONS.md
+- For DevOps/infra tasks: the Deployment Topology section of ARCHITECTURE.md (non-negotiable — no infra task executes without the full topology as context)
 
 **Worker executes:**
 1. Creates feature branch (`feat/<issue>`)
@@ -100,7 +101,17 @@ Just do it. The human approved the wave plan in Phase 3. Execute it.
 
 Every milestone's verification wave MUST include Playwright E2E tests covering that milestone's truth conditions. This is not optional — it is a gate requirement.
 
-The QA worker in the verification wave must:
+Final wave — verification (3 teammates, spawned simultaneously):
+1. **QA — Truth Condition Tests**: Playwright E2E tests for each truth condition
+2. **Security — Security Review**: Code review for vulnerabilities
+3. **QA — Exploratory Testing** (NEW): Goes beyond truth conditions:
+   a. UI completeness — click every button/link/interactive element, flag dead UI
+   b. Error state testing — verify all frontend API calls handle non-200 responses
+   c. Auth flow completeness — test full token lifecycle (login → expiry → refresh/redirect)
+   d. Visual check — Playwright screenshots in light/dark mode, flag contrast issues
+   e. Responsive check — screenshots at 375px, 768px, 1280px widths
+
+The QA (Truth Condition Tests) worker in the verification wave must:
 1. Write Playwright tests that verify each truth condition as a real user would (browser, clicks, form fills, navigation).
 2. Tests must run headless in CI and locally.
 3. If any truth condition cannot be verified with a Playwright test (e.g., pure backend), write an API-level integration test instead — but default to Playwright for anything user-facing.
@@ -109,6 +120,21 @@ The QA worker in the verification wave must:
 If the project does not yet have Playwright configured, the FIRST task of the first verification wave is "Set up Playwright with initial config, browser install, and one smoke test that loads the app." Every subsequent verification wave adds tests.
 
 A milestone cannot pass its checkpoint if its truth conditions are not covered by automated tests — Playwright for UI flows, integration tests for backend-only flows.
+
+## Containerized Validation Wave (Non-Negotiable)
+
+Any milestone that produces Docker, deployment, or infrastructure artifacts MUST include a **containerized validation wave** as the second-to-last wave (before QA/Security verification). This validates that the production stack actually works — not just that the files look correct.
+
+The validation task:
+1. Build the production Docker image: `docker build` must succeed with zero errors.
+2. Start the full stack: `docker compose -f docker-compose.prod.yml up` (or equivalent). All services must reach healthy status.
+3. Verify migrations: Database tables exist after startup.
+4. Verify seed: Run seed script against the containerized stack. Admin account exists with correct role.
+5. Verify health check: `curl http://localhost:<EXPOSED_PORT>/api/health` returns 200. Use the EXTERNAL port from the deployment topology — not the internal app port.
+6. Verify core flow: Hit registration and login endpoints through the reverse proxy. App serves pages through the proxy.
+7. Tear down: `docker compose down -v`.
+
+If ANY step fails, fix and re-validate. Do not proceed to verification wave with broken infrastructure.
 
 ## Milestone Checkpoint (after each milestone)
 
@@ -127,6 +153,12 @@ After the final milestone, run a cross-cutting verification:
 - Coverage meets or exceeds 80%.
 - No architectural drift.
 - All milestone truth conditions still pass together.
+- Full production Docker build succeeds from `main` branch.
+- `docker compose -f docker-compose.prod.yml up --build` starts all services to healthy.
+- Playwright E2E suite passes against the containerized app (through reverse proxy on external port — not against `next dev` on port 3000).
+- Seed script creates admin with correct role against containerized stack.
+- Deploy and rollback scripts execute without errors.
+- `.env.example` accounts for every env var across codebase, Dockerfile, docker-compose, and scripts.
 
 Once the integration gate passes, log: **"Phase 4 complete — all milestones verified. Moving to Quality & Security Hardening."**
 

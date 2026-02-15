@@ -47,6 +47,8 @@ Log EVERY requirement as a GitHub issue with: title, labels, milestone, acceptan
 > Anti-pattern: "Implement user authentication" → Too big.
 > Correct: "Create users table migration" → "Add password hashing utility" → "Build POST /api/auth/register" → ...
 
+**DevOps task acceptance criteria must include execution.** Tasks that produce Docker, nginx, or deployment artifacts are not done when the file is written — they are done when the artifact has been executed successfully. "Write the Dockerfile" is not a valid task. "Write and build the Dockerfile, verify the image starts and serves the app" is. Include execution-based acceptance criteria for every infra task: `docker build` must succeed, `docker compose up` must reach healthy, scripts must run without errors against the containerized stack.
+
 ## Step 3: Wave Planning
 
 For each milestone, organize issues into **waves**:

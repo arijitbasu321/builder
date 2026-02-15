@@ -45,6 +45,12 @@ Collect the following inputs interactively. The human may have already provided 
 - "Who are the target users?" (header: "Users") — Options: suggest 2-3 personas based on the project idea
 - "Which AI provider?" (header: "AI Provider") — Options: "OpenAI", "Anthropic", "Both"
 
+**Round 4 — Deployment details (only if hosting is a VPS or self-managed server — skip for Vercel/Railway/Netlify):**
+- "How will the app run in production?" (header: "Runtime") — Options: "Docker Compose (Recommended)", "Plain Node.js + systemd", "Kubernetes"
+- "Reverse proxy?" (header: "Proxy") — Options: "Nginx (Recommended)", "Caddy", "Traefik", "None"
+- "SSL strategy?" (header: "SSL") — Options: "Let's Encrypt via certbot (Recommended)", "Cloudflare managed SSL", "Platform-managed"
+- "DNS provider?" (header: "DNS") — Options: "Cloudflare", "Route53", "Namecheap/registrar default"
+
 After collecting all inputs, confirm the AI API key is available (ask the human to provide it if not already set as an env var).
 
 ## Actions After Inputs Are Collected
@@ -89,6 +95,10 @@ Next action: Collect remaining inputs, scaffold repo
 - Target Users: [fill]
 - Domain: [fill]
 - AI API Key: [provided/pending]
+- Runtime: [Docker Compose / Node.js / etc.]
+- Reverse Proxy: [Nginx / Caddy / etc.]
+- SSL: [Let's Encrypt / Cloudflare / etc.]
+- DNS: [Cloudflare / Route53 / etc.]
 
 # Milestones
 (Defined in Phase 3)

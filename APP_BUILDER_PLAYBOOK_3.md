@@ -277,7 +277,7 @@ Milestone v0.2 — Core Feature + AI
 - A wave only starts after the previous wave is **fully complete and verified**.
 - The PM is responsible for analyzing task dependencies and organizing waves.
 - Wave organization is documented in `.planning/STATE.md` so it survives session resets.
-- The final wave of each milestone is always **verification** (QA + Security review).
+- The final wave of each milestone is always **verification** (QA + Security + Exploratory QA review).
 
 ### Goal-Backward Verification
 
@@ -615,14 +615,15 @@ Create `docs/ARCHITECTURE.md` with:
     - **AI Response Caching**: Identify cacheable AI responses — static suggestions, FAQ-like chatbot queries, repeated prompt patterns — and implement appropriate caching (in-memory or Redis) to reduce API costs. Define cache TTL per use case.
     - **Cost Estimation**: During architecture review, estimate AI costs: "This feature will make ~X API calls per user per day at ~Y cost per call = ~Z monthly spend at N users." This informs model selection (GPT-4o vs GPT-4o-mini) and identifies features that need caching.
     - **Token & Cost Tracking**: Schema for logging every AI API call (user_id, endpoint, model, input_tokens, output_tokens, cost, latency, timestamp). This feeds the admin dashboard.
-11. **Production Deployment Architecture** — Document:
-    - Production domain and DNS configuration.
-    - SSL/TLS setup (Let's Encrypt, Cloudflare, or provider-managed).
-    - Production deployment script (`scripts/deploy.sh`) — what it does step-by-step.
-    - Rollback script (`scripts/deploy-rollback.sh`) — how to revert to the previous version.
-    - Zero-downtime deployment strategy (blue-green, rolling, etc.).
-    - Health check and smoke test endpoints.
-    - Backup strategy for the database.
+11. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infra task MUST reference this section. Include:
+    - **Service map**: Every container/process, its internal port, its exposed port, and how they communicate (Docker network, localhost, etc.)
+    - **Port mapping table**: Internal vs external ports. Which ports are exposed to the host. Which are Docker-internal only. Scripts and health checks must use the correct (external) port.
+    - **Env var flow**: For each env var, specify: where it's defined, how it reaches the container (build arg, runtime env, compose env_file, .env auto-load), and whether it's build-time or runtime. For Next.js: which vars need `NEXT_PUBLIC_` prefix, which are server-only, which are needed at build time for static generation / Prisma generate.
+    - **SSL/TLS termination**: Where SSL terminates (reverse proxy, app, CDN). Bootstrapping sequence if using certbot (HTTP-only config first → obtain cert → swap to HTTPS config). List all external domains that need CSP whitelisting (AI APIs, CDNs, auth providers).
+    - **Reverse proxy config**: Upstream mapping, health check endpoint and port, CSP headers, security headers.
+    - **Startup/dependency order**: Which services must start first (database before app, app before reverse proxy, etc.). Docker Compose `depends_on` with health checks.
+    - **Migration strategy**: How and when database migrations run (separate container, entrypoint script, CI step). Must work on first deploy and subsequent deploys.
+    - **Seed strategy**: How seed scripts connect to the database (through reverse proxy on external port vs direct on internal port vs docker exec).
 
 ### Step 2.3 — Tooling Augmentation (MCP Servers & Skills)
 
@@ -738,6 +739,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture.
 22. **Truth conditions over task completion.** A milestone is done when its truth conditions pass, not when its tasks are checked off. Always verify observable outcomes.
 23. **Log learnings.** After every task, append useful discoveries to `.planning/LEARNINGS.md` — patterns, gotchas, conventions, workarounds. Tag entries by category (`[ORM]`, `[AI]`, `[AUTH]`, etc.). The team's future selves will thank you.
 24. **Log decisions.** When the PM resolves a conflict, the human makes a call, or something is descoped, log it in `.planning/DECISIONS.md`. Check this file before escalating — if it's already been decided, execute. Don't relitigate.
+25. **Validate infrastructure by execution, not just review.** Dockerfiles must be built (`docker build`). Docker Compose files must be started (`docker compose up`). Deploy scripts must be run. Nginx configs must be loaded. If an infrastructure artifact hasn't been executed successfully, it is not done — no matter how correct it looks. Code review catches logic errors; only execution catches runtime errors (missing dependencies, wrong paths, port conflicts, env var scoping, Alpine compatibility).
+26. **Defensive scripting.** All shell scripts must: start with `set -euo pipefail`; never use `2>/dev/null` or `|| true` to suppress errors unless there is a specific, commented reason explaining what error is expected and why it's safe to ignore; explicitly load required env files (e.g., `source .env.production` or `--env-file .env.production`) — never assume env vars exist in the shell; validate required env vars at the top of the script before using them; exit non-zero on failure — never print "may have succeeded" when you don't know; use the correct ports/URLs from the deployment topology, not hardcoded dev defaults.
+27. **Every API call must handle errors.** Frontend code that calls an API endpoint must check the response status before using the data. `const data = await res.json()` without checking `res.ok` is a bug. Wrap API calls with proper error handling: check status, parse error messages, show user-facing feedback. Silent failures are worse than crashes — they create ghost states the user can't diagnose.
 
 ## Testing
 - **Unit tests**: [framework, e.g., Jest / pytest]
@@ -846,6 +850,8 @@ Each issue must be small enough for a **fresh teammate to complete in a single s
 > **Anti-pattern**: "Implement user authentication" → Too big.
 > **Correct**: Split into: "Create users table migration" → "Add password hashing utility" → "Build POST /api/auth/register endpoint" → "Build POST /api/auth/login endpoint" → "Add JWT token generation and validation" → "Write auth middleware" → "Write auth endpoint integration tests"
 
+**DevOps task acceptance criteria must include execution.** Tasks that produce Docker, nginx, or deployment artifacts are not done when the file is written — they are done when the artifact has been executed successfully. "Write the Dockerfile" is not a valid task. "Write and build the Dockerfile, verify the image starts and serves the app" is. Include execution-based acceptance criteria for every infra task: `docker build` must succeed, `docker compose up` must reach healthy, scripts must run without errors against the containerized stack.
+
 ### Step 3.3 — Wave Planning & Prioritization
 
 For each milestone, the PM organizes issues into **waves** based on dependencies:
@@ -923,8 +929,9 @@ PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Te
 ├── ... (repeat for each wave)
 │
 ├── Final Wave: Verification (spawned simultaneously)
-│   ├── Teammate (QA) → E2E tests, acceptance criteria   ┐
-│   └── Teammate (Security) → Security review             ┘
+│   ├── Teammate (QA) → E2E tests, acceptance criteria          ┐
+│   ├── Teammate (Security) → Security review                    ├── spawned together
+│   └── Teammate (QA — Exploratory) → Beyond truth conditions   ┘
 │
 └── PM runs truth condition check → Milestone checkpoint
 ```
@@ -973,7 +980,32 @@ For **each task**, the PM spawns a teammate via Agent Teams with a clean context
 
 > **Review calibration**: Lightweight review (PM checks architecture + security in one pass) is the default for most tasks. The full 3-reviewer pipeline (separate Architect, Security, QA teammates) is reserved for changes touching: auth/sessions, AI integration, data models/migrations, API contracts, or any code flagged by Security. This keeps velocity high without compromising on the things that actually matter.
 
+Final wave of each milestone — verification (3 teammates, spawned simultaneously):
+1. **QA — Truth Condition Tests**: Playwright E2E tests covering each truth condition.
+2. **Security — Security Review**: Code review for vulnerabilities.
+3. **QA — Exploratory Testing** (NEW): A separate QA teammate going beyond truth conditions:
+   a. **UI completeness**: Navigate every page. Click every button, link, and interactive element. Verify each has a handler and produces the expected result. Flag dead UI elements.
+   b. **Error state testing**: For every API call in the frontend, verify the code handles non-200 responses. Test what the user sees on 401, 403, 500. No silent failures.
+   c. **Auth flow completeness**: Verify the full token lifecycle — login → use app → token expiry → what happens? Is there a refresh mechanism? Does it work? Test logout. Test expired sessions.
+   d. **Visual/contrast check**: Take Playwright screenshots of every major page in both light and dark mode. Review for obvious contrast issues, overlapping elements, broken layouts.
+   e. **Responsive check**: Take Playwright screenshots at mobile (375px), tablet (768px), and desktop (1280px) widths. Flag layout breaks.
+
 > **Context management rule**: If the PM's own context exceeds ~60% utilization, it should start a new session, re-read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md`, and continue orchestrating. No work is lost because all state is in files.
+
+### Containerized Validation Wave (Non-Negotiable)
+
+Any milestone that produces Docker, deployment, or infrastructure artifacts MUST include a **containerized validation wave** as the second-to-last wave (before the QA/Security verification wave). This wave validates that the production stack actually works — not just that the files look correct.
+
+The validation task:
+1. Build the production Docker image: `docker build` must succeed with zero errors.
+2. Start the full stack: `docker compose -f docker-compose.prod.yml up` (or equivalent). All services must reach healthy status.
+3. Verify migrations: Database tables must exist after startup. Run a test query.
+4. Verify seed: Run the seed script against the containerized stack. Admin account must exist with correct role.
+5. Verify health check: `curl http://localhost:<EXPOSED_PORT>/api/health` must return 200. Use the EXTERNAL port from the deployment topology — not the internal app port.
+6. Verify core flow: Hit registration and login endpoints through the reverse proxy. Confirm the app serves pages through the proxy, not just directly.
+7. Tear down: `docker compose down -v` to clean up.
+
+If ANY step fails, the infrastructure is not done. Fix and re-validate. Do not proceed to the verification wave with broken infrastructure.
 
 ### Milestone Checkpoint (After Completing Each Milestone)
 
@@ -1043,6 +1075,12 @@ Once core features exist, add Playwright E2E tests for critical user flows:
 - [ ] Coverage meets or exceeds 80%.
 - [ ] No architectural drift — Architect confirms the codebase matches ARCHITECTURE.md.
 - [ ] Human has signed off on each milestone.
+- Full production Docker build succeeds from `main` branch.
+- `docker compose -f docker-compose.prod.yml up --build` starts all services to healthy status.
+- Playwright E2E suite passes against the containerized app (through the reverse proxy on the external port — not against `next dev` on port 3000).
+- Seed script creates admin user with correct role when run against the containerized stack.
+- Deploy and rollback scripts execute without errors.
+- `.env.example` accounts for every env var used across the codebase, Dockerfile, docker-compose, and scripts.
 
 ---
 
@@ -1064,6 +1102,8 @@ Agent performs a thorough review and logs issues in the GitHub Project backlog u
 | `security`    | Vulnerabilities, missing validation, exposed data, insecure defaults |
 | `performance` | Slow queries, unnecessary re-renders, unoptimized assets, missing pagination |
 | `dx`          | Developer experience — missing types, unclear code, missing documentation |
+
+Review auth/session behavior: Does the token expire? How long? Is there a refresh mechanism? Does it actually work end-to-end (not just "the code exists")? Is the user experience acceptable when a session expires?
 
 ### Step 5.2 — Deep Security Audit
 
@@ -1109,6 +1149,15 @@ Agent conducts a focused security review:
    - Conversation history is scoped per-user (no cross-user data leakage).
    - Chatbot cannot be tricked into revealing system prompts, other users' data, or internal details.
 
+7. **Script Quality Audit** — Review every shell script in `scripts/` and any Docker entrypoint scripts:
+   - Has `set -euo pipefail` at the top
+   - No silent error suppression (`2>/dev/null`, `|| true`) without documented reason
+   - Loads env files explicitly — doesn't assume shell env vars
+   - Validates required env vars before use
+   - Uses correct ports/URLs from the deployment topology (not hardcoded `localhost:3000`)
+   - Exits non-zero on all failure paths
+   - Has been executed against the containerized stack (not just reviewed)
+
 Agent logs every finding as a GitHub issue with label `security` and priority.
 
 ### Step 5.3 — Resolve Security & Critical Issues
@@ -1129,6 +1178,12 @@ Agent works through security and critical bug issues using the same Development 
 ### Goal
 
 Get the application running in a production(-like) environment with monitoring.
+
+### Pre-Deployment Verification (before any production work begins)
+
+1. **Merge develop → main**: All approved milestone work must be on `main`. Run `git log main..develop` — if there are commits, merge now. This is a blocking prerequisite.
+2. **Verify containerized build from main**: Check out `main`, run `docker compose -f docker-compose.prod.yml up --build`. Everything must start healthy from `main`. This confirms `main` has all the files and configs needed for production.
+3. **Verify .env.example is complete**: Every env var used in the codebase, Dockerfile, docker-compose, and scripts must have an entry in `.env.example` with a description.
 
 ### Step 6.1 — Production Deployment Scripts
 

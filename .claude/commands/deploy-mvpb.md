@@ -14,6 +14,16 @@ The same Agent Teams rules from Phase 4 apply here. You are the orchestrator —
 - Dependencies still run sequentially (e.g., production domain must be configured before DNS records), but everything that can run in parallel should.
 - All other Agent Teams rules (fresh context per task, handoff context, no sequential spawning of independent work) carry over from Phase 4's "Agent Teams Parallel Dispatch (Non-Negotiable)" section.
 
+## Step 0: Pre-Deployment Verification
+
+Before any production deployment work begins, verify these prerequisites:
+
+1. **Merge develop → main**: All approved milestone work must be on `main`. Run `git log main..develop` — if there are unmerged commits, merge and push now. This is a blocking prerequisite — do not proceed with deployment from `develop`.
+2. **Verify containerized build from main**: Check out `main`, run `docker compose -f docker-compose.prod.yml up --build`. All services must start healthy. This confirms `main` has every file and config needed for production.
+3. **Verify .env.example is complete**: Every env var used in the codebase, Dockerfile, docker-compose, and scripts must have a corresponding entry in `.env.example` with a description. Grep the codebase for `process.env.` and `${` references and cross-check.
+
+If any verification fails, fix it before proceeding. Do not start production deployment with an incomplete `main` branch.
+
 ## Step 1: Production Deployment Scripts
 
 Create production-ready scripts:

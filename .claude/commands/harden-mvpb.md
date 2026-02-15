@@ -25,6 +25,8 @@ Review the entire application and log issues in the GitHub Project backlog. Use 
 - **`performance`**: Slow queries, re-renders, missing pagination
 - **`dx`**: Missing types, unclear code, documentation gaps
 
+**Auth/session behavior review:** Specifically check: Does the access token expire? How long is the expiry? Is there a refresh token mechanism? Does it actually work end-to-end — not just "the code exists" but "the client-side interceptor catches 401s, calls the refresh endpoint, and retries the request"? Is the user experience acceptable when a session expires (redirect to login with a message, not silent data loss or blank screens)?
+
 **Use `AskUserQuestion` to ask the human which areas to prioritize** (header: "Focus areas") — Options: "Full audit (all categories)", "Security-first", "UX & polish priority". Let them select or provide custom focus.
 
 ## Step 2: Deep Security Audit
@@ -46,6 +48,14 @@ Review the entire application and log issues in the GitHub Project backlog. Use 
    - AI cost alerts configured
    - Conversation history scoped per-user (no cross-user leakage)
    - Chatbot cannot reveal system prompts or internal details
+7. **Script Quality Audit** — Review every shell script in `scripts/` and any Docker entrypoint scripts:
+   - Has `set -euo pipefail` at the top
+   - No silent error suppression (`2>/dev/null`, `|| true`) without a documented, commented reason
+   - Loads env files explicitly — does not assume shell env vars exist
+   - Validates required env vars before use (e.g., `[[ -z "$DB_PASSWORD" ]] && echo "error" && exit 1`)
+   - Uses correct ports/URLs from the deployment topology — not hardcoded dev defaults like `localhost:3000`
+   - Exits non-zero on all failure paths — never prints misleading success messages
+   - Has been executed against the containerized stack, not just reviewed
 
 **Severity classification:**
 - **Critical** — Blocks MVP. Must fix now.
