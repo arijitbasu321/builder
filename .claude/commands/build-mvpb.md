@@ -144,7 +144,7 @@ If ANY step fails, fix and re-validate. Do not proceed to verification wave with
 4. Security reviews any new attack surface.
 5. Update STATE.md: mark milestone complete, archive details, set up next milestone.
 6. **Present to human for sign-off** — each milestone requires human approval. Once approved, immediately begin the next milestone's first wave (do not wait for another command).
-7. Reassess tooling: any new MCP servers or skills needed?
+7. **Tooling reassessment (mandatory):** If the next milestone introduces new technology or workflows (e.g., chatbot, admin panel, deployment, monitoring), search the skills source registry for matching skills before starting the next wave. For every new external service, check if an MCP server would help. Apply the same security vetting protocol from Phase 2. Propose new tools to the human if found.
 
 ## Integration Gate (after ALL milestones)
 
