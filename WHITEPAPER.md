@@ -55,6 +55,7 @@ Every element of the framework described in this paper exists because it solves 
 | Human gates at strategic points | Loss of product control |
 | Wave-based execution with file-independence checks | Dependency conflicts, parallel write conflicts |
 | Recovery & pivot protocol | Grinding against broken assumptions |
+| Trust-tiered skills with security vetting | Supply chain injection via malicious skill files |
 
 ---
 
@@ -355,23 +356,68 @@ AI response caching is an architectural concern, not an optimization afterthough
 
 ### 8.1 MCP Servers
 
-Model Context Protocol (MCP) servers extend the agent's capabilities by providing structured access to external tools and services. The framework distinguishes between two categories:
+Model Context Protocol (MCP) servers extend the agent's capabilities by providing structured access to external tools and services. The framework treats MCP consideration as mandatory — for every external service in the architecture (database, AI provider, email service, cloud platform, project management), the Architect must check whether an MCP server exists that would give teammates direct programmatic access. Installation is not mandatory; consideration is.
 
-**Development MCP servers** help the agent build faster — direct database access (Postgres MCP), programmatic issue management (GitHub MCP), file system tools. These augment the agent's development workflow.
+The framework distinguishes between two categories:
+
+**Development MCP servers** help the team build faster — direct database access (Postgres MCP), programmatic issue management (GitHub MCP), container management. These augment the development workflow. A Postgres MCP server, for example, lets a Developer teammate query the database directly during implementation rather than writing and running SQL scripts through bash — reducing context consumption and increasing accuracy.
 
 **Product MCP servers** power features in the running application — browser automation, data connectors, third-party API integrations. These become part of the deployed product.
 
-Each MCP server requires human approval before installation. The agent proposes it with a justification and a fallback approach, and the human approves or denies. This prevents the agent from installing tools that the human doesn't want in their environment.
+Each MCP server requires human approval before installation. The Architect proposes it with a justification, security implications, and a fallback approach if denied. Every decision — install or skip — is documented so the rationale is available when the team reassesses at milestone boundaries.
 
-### 8.2 Skills Acquisition
+### 8.2 The Skills Supply Chain Problem
 
-Skills are specialized instruction sets — markdown files containing best practices, patterns, and guidelines for specific technologies or tasks. Examples: "Next.js App Router patterns," "Playwright E2E best practices," "OpenAI streaming implementation."
+Skills are specialized instruction files (SKILL.md) containing best practices, patterns, and guidelines for specific technologies. They follow the Agent Skills open standard (agentskills.io) and are designed to be loaded automatically by AI coding tools. Examples include "Next.js App Router patterns," "Playwright E2E best practices," and "Prisma schema design."
 
-The agent can propose downloading skill files that would improve its output quality for the specific project. Each proposal includes the source, what it covers, and why it's relevant. Approved skills are stored in the repository's `skills/` directory so they are versioned, visible, and available to all teammates and sub-agents.
+Skills represent a powerful force multiplier — a well-written skill file can encode years of framework-specific experience into patterns an agent follows automatically. But skills also represent a supply chain risk. A skill file is a set of instructions that the agent follows implicitly. A malicious skill could subtly steer code generation toward insecure patterns, inject backdoors through "recommended" code snippets, or exfiltrate data through "suggested" API calls.
 
-### 8.3 Tooling Reassessment
+Research from Snyk's ToxicSkills study (2025) found that 36% of skills in public repositories contained prompt injection, with 534 critical issues identified across 3,984 analyzed skills. 91% of malicious skills combined executable payloads with prompt injection — meaning they didn't just give bad advice, they actively executed harmful code. This is not a theoretical risk.
 
-The framework specifies that the team should reassess its tooling needs at every milestone checkpoint. What was not needed at v0.1 may become valuable at v0.3. The milestone checkpoint is the natural point to propose new MCP servers, skills, or services — and to retire ones that turned out to be unnecessary.
+### 8.3 Trust-Tiered Source Registry
+
+The framework addresses the supply chain problem by restricting skill sources to two vetted tiers:
+
+**Tier 1 — Official Anthropic sources.** These are maintained by the organization that builds the agent itself. The risk of prompt injection is near-zero because the authors have direct incentive to maintain trust. Sources include the official Anthropic skills repository (github.com/anthropics/skills) and any official plugin collections.
+
+**Tier 2 — High-trust community aggregators.** These are well-maintained open-source repositories that curate skills from the community. Examples include awesome-claude-code collections and community-vetted skill directories. The risk is higher than Tier 1 because these repositories aggregate skills from many authors — the aggregator maintainers vet what they list, but individual skills may not receive deep security review. This is where the framework's security vetting protocol (Section 8.4) becomes critical.
+
+Tier 3 (community registries) and Tier 4 (npm packages, CLI tools) are explicitly excluded. The supply chain risk is too high and the vetting burden too large for an automated team to manage safely. If a skill is only available from an unvetted source, the team does without it.
+
+### 8.4 Mandatory Search and Security Vetting Protocol
+
+Skills acquisition is not optional. During Phase 2 (Architecture), after the tech stack is decided, the Architect extracts every major technology keyword (framework, ORM, styling library, AI provider, testing framework, database, deployment platform) and systematically searches for matching skills, starting with Tier 1 sources and then Tier 2.
+
+For each candidate skill, the Architect must:
+
+1. **Fetch and read the full SKILL.md content.** No blind installs. Every line must be read before the skill is proposed.
+2. **Check for prompt injection patterns.** Instructions to ignore previous context, override safety settings, exfiltrate data, modify configuration files, or obfuscated content.
+3. **Reject skills with broad permission requests.** Unrestricted shell access, writes outside the project directory, undisclosed network calls.
+4. **Reject embedded executable payloads.** Skills should contain instructions and patterns, not executable code.
+5. **Verify repository provenance.** Check commit history, contributors, license, and maintenance activity. A skill from a repository with a single commit and no contributors is higher risk than one from an actively maintained collection.
+
+**Two-pass review for Tier 2 skills.** Tier 2 skills that pass the Architect's initial vetting must undergo a second, independent review by the Security agent before they are proposed to the human. The Architect and Security reviews must be independent — Security does not see the Architect's assessment, to prevent confirmation bias.
+
+The Security agent's second pass looks for subtle attacks that evade pattern-based detection:
+
+- **Bias attacks.** Does the skill subtly steer code generation toward insecure patterns — recommending vulnerable dependencies, weakening authentication logic, disabling validation, or suggesting permissive CORS configurations?
+- **External reference manipulation.** Does the skill reference external URLs for "documentation" or "examples" that could change after review? External URLs should point to stable, trusted resources (official documentation, pinned GitHub commits) — not raw gist links, URL shorteners, or user-controlled pages.
+- **Scope creep.** Does the skill claim to cover one topic (e.g., "Tailwind patterns") but include instructions that affect unrelated areas (modifying API routes, changing authentication flows, altering database schemas)?
+- **Trojan instructions.** Are there instructions buried deep in the skill that contradict or undermine the skill's stated purpose? The full skill must be read, not just the opening section.
+
+If Security flags concerns, the skill is rejected regardless of the Architect's recommendation.
+
+### 8.5 Presentation and Human Approval
+
+After vetting, the Architect presents MCP servers and skills as separate lists to the human. Each item includes: name, source URL, trust tier, what it covers, security assessment, and fallback approach if denied. The human approves or denies each item individually.
+
+Approved skills are installed to the project's `.claude/skills/` directory so they are versioned, visible in the repository, and automatically available to all teammates. Denied items are documented with the denial reason so future sessions do not re-propose them.
+
+### 8.6 Tooling Reassessment at Milestone Boundaries
+
+The team reassesses its tooling needs at every milestone checkpoint. What was not needed at v0.1 may become valuable at v0.3 — a milestone that introduces a chatbot may benefit from skills for streaming AI responses; a milestone that adds an admin panel may benefit from a data visualization skill.
+
+The reassessment follows the same protocol: extract new technology keywords from the upcoming milestone, search the source registry, apply the security vetting protocol, propose to the human. This ensures the team's tooling stays current with the project's evolving needs without requiring the human to anticipate every tool upfront.
 
 ---
 
@@ -574,6 +620,8 @@ The key ideas are:
 8. **Recovery must be defined before it's needed.** When a fundamental assumption breaks, the team needs a protocol — halt, propose alternatives, escalate to the human — not ad hoc improvisation.
 
 9. **Every practice must earn its place.** If a process element doesn't prevent a specific, named failure mode, it is overhead. Remove it.
+
+10. **Tooling is a supply chain.** Skills and MCP servers are force multipliers, but they are also instruction injection vectors. Trust-tiered sources, mandatory security vetting, and independent two-pass review for community-sourced skills protect the team from the most common supply chain attack in the AI agent ecosystem.
 
 These principles are rooted in Claude Code's Agent Teams as the primary execution model, but the underlying concepts are portable. Agent Teams is preferred because it provides the strongest structural enforcement of the framework's core principles — independent contexts, persistent role identity, parallel execution, and message-based coordination. Sub-agents via the Task tool offer a viable fallback that preserves fresh context isolation while sacrificing parallelism and peer coordination. The broader concepts — role separation, context management, truth conditions, autonomy boundaries — apply to any AI coding agent that supports autonomous execution, task delegation, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
 
