@@ -56,8 +56,9 @@ The playbook is broken into slash commands — one per phase, plus utilities. Ea
 | `/plan-mvpb` | 3 — Planning | Breaks requirements into milestones, issues, waves |
 | `/build-mvpb` | 4 — Development | Builds the app milestone by milestone |
 | `/harden-mvpb` | 5 — Hardening | Security audit, quality review, bug fixes |
-| `/deploy-mvpb` | 6 — Deployment | Production deployment, monitoring, demo script |
-| `/iterate-mvpb` | 7 — Iteration | Post-MVP improvements and backlog |
+| `/sweep-mvpb` | 6 — Code Sweep | Architect + Developer full codebase review for bugs |
+| `/deploy-mvpb` | 7 — Deployment | Production deployment, monitoring, demo script |
+| `/iterate-mvpb` | 8 — Iteration | Post-MVP improvements and backlog |
 
 ### Utility Commands
 
@@ -66,6 +67,7 @@ The playbook is broken into slash commands — one per phase, plus utilities. Ea
 | `/status-mvpb` | Quick status report — current phase, milestone, wave, blockers |
 | `/resume-mvpb` | Reloads all state files and picks up where the last session left off |
 | `/pivot-mvpb` | Invokes the recovery protocol when something fundamental breaks |
+| `/help-mvpb` | Overview of all commands, phases, and gates |
 
 ### Typical Flow
 
@@ -78,13 +80,14 @@ The playbook is broken into slash commands — one per phase, plus utilities. Ea
 /status-mvpb    → check progress anytime
 /resume-mvpb    → after a break or context reset
 /harden-mvpb    → security audit after all milestones complete
+/sweep-mvpb     → architect + developer full codebase review
 /deploy-mvpb    → production deployment and launch
 /iterate-mvpb   → post-MVP improvements
 ```
 
 ## Your Job During the Build
 
-You have 5 human gates where the PM will stop and wait for your sign-off:
+You have 6 human gates where the PM will stop and wait for your sign-off:
 
 | Gate | Phase | What You're Approving |
 |------|-------|-----------------------|
@@ -92,9 +95,10 @@ You have 5 human gates where the PM will stop and wait for your sign-off:
 | 2 | Architecture | How it's built |
 | 3 | Task Plan | The build order |
 | 4 | Hardening | Security audit and quality review |
-| 5 | Deployment | Production launch readiness |
+| 5 | Code Sweep | Builders' final review — bugs, integration seams, drift |
+| 6 | Deployment | Production launch readiness |
 
-Between gates: provide API keys when requested, make decisions when escalated, otherwise stay out of the way.
+During Phase 4 (Development), each milestone also requires your sign-off before the next one begins. Between gates: provide API keys when requested, make decisions when escalated, otherwise stay out of the way.
 
 ## How It Works
 
@@ -116,6 +120,7 @@ The playbook defines 6 roles (PM, Architect, Developer, QA, Security, DevOps) th
 | `.planning/STATE.md` | Current progress, waves, truth conditions |
 | `.planning/DECISIONS.md` | Settled decisions — prevents relitigating |
 | `.planning/LEARNINGS.md` | Team knowledge that accumulates across tasks |
+| `.planning/LEARNINGS_ARCHIVE.md` | Archived learnings from older milestones |
 
 ## License
 
