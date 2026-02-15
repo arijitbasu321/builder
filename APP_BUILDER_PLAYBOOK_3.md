@@ -8,7 +8,7 @@
 
 ## How to Use This Playbook
 
-This playbook is divided into **7 phases**, each with a clear gate. Do not advance to the next phase until the current phase's gate conditions are met. Each phase produces specific artifacts that feed into the next.
+This playbook is divided into **8 phases**, each with a clear gate. Do not advance to the next phase until the current phase's gate conditions are met. Each phase produces specific artifacts that feed into the next.
 
 Hand this document to your Claude Code instance. The PM agent will take the lead, follow the playbook sequentially, delegate to the team, and check in with you at every gate. **You talk to the PM. The PM talks to the team.**
 
@@ -26,7 +26,7 @@ The human is the **product owner, tech director, and project sponsor** — not a
 - Routine task sequencing within an approved wave plan.
 
 **The team MUST stop to consult the human when:**
-- A **human gate** is reached (Phases 1, 2, 5, 6).
+- A **human gate** is reached (Phases 1, 2, 5, 6, 7).
 - A **major conflict** between agents cannot be resolved by the PM.
 - A **new service key** is needed (Service Keys Protocol).
 - A **new MCP server or skill** is proposed (Tooling Augmentation Protocol).
@@ -152,10 +152,10 @@ Conflicts between agents are inevitable. Here's the resolution hierarchy:
 |----------|-----------|--------|-------------|
 | **Critical** | Exploitable vulnerability with immediate user impact (auth bypass, data exposure, RCE) | Must fix before merge | Yes |
 | **High** | Significant vulnerability that requires specific conditions to exploit (CSRF, privilege escalation edge cases) | Must fix before launch | Yes |
-| **Medium** | Theoretical vulnerability or defense-in-depth gap (timing attacks on token comparison, missing secondary rate limits) | Fix in Phase 7 — document and accept risk for MVP | No |
+| **Medium** | Theoretical vulnerability or defense-in-depth gap (timing attacks on token comparison, missing secondary rate limits) | Fix in Phase 8 — document and accept risk for MVP | No |
 | **Low** | Best-practice deviation with minimal real-world risk (suboptimal CSP header, verbose error messages in non-sensitive endpoints) | Document, add to backlog | No |
 
-> Only **Critical** and **High** findings should block development. Security should still flag Medium and Low findings, but they get logged as issues for Phase 7, not as blockers.
+> Only **Critical** and **High** findings should block development. Security should still flag Medium and Low findings, but they get logged as issues for Phase 8, not as blockers.
 
 > **Escalation format** (PM to human):
 >
@@ -177,8 +177,9 @@ Each phase has a **lead agent** who drives the work, supported by others:
 | 3 — Task Breakdown | PM | All agents review their domain's issues |
 | 4 — Development | Developer | QA (continuous testing), Architect (code review), Security (security review), DevOps (CI/CD) |
 | 5 — Hardening | Security (lead), QA (co-lead) | Developer (fixes), DevOps (infra hardening) |
-| 6 — Deployment | DevOps | Security (production security), QA (smoke tests), PM (demo script) |
-| 7 — Iteration | PM | All agents contribute to retrospective and backlog |
+| 6 — Final Code Sweep | Architect (lead), Developer (co-lead) | PM (orchestration), QA (regression verification) |
+| 7 — Deployment | DevOps | Security (production security), QA (smoke tests), PM (demo script) |
+| 8 — Iteration | PM | All agents contribute to retrospective and backlog |
 
 ### Context Management (Preventing Context Rot)
 
@@ -1250,7 +1251,61 @@ Agent works through security and critical bug issues using the same Development 
 
 ---
 
-## Phase 6: Deployment & Launch Prep
+## Phase 6: Final Code Sweep
+
+### Goal
+
+Give the builders — Architect and Developers — one complete pass through the finished codebase. During Phase 4, each task was built in isolation with fresh context. Phase 5 caught security vulnerabilities and UX bugs. But only the people who built the system can spot architectural drift, inconsistent patterns across modules built in different waves, and integration seams between components that were never tested together until now.
+
+### Step 6.1 — Builders' Review (3 parallel tracks)
+
+Spawn three teammates simultaneously:
+
+**Architect — Structural Review:**
+1. Compare implementation against `docs/ARCHITECTURE.md`. Flag any component, data flow, or API contract that diverged during development.
+2. Pattern consistency — inconsistent error handling, mixed data fetching strategies, mixed naming conventions across modules.
+3. Dead code — unused imports, commented-out code, TODO/FIXME left behind, orphaned components.
+4. Dependency review — unused or duplicate libraries.
+5. Data model integrity — orphaned foreign keys, missing cascades, missing indexes for common queries.
+
+**Developer — Integration Seam Review:**
+1. API contract alignment — do frontend calls match what the API actually expects and returns?
+2. Error propagation — trace errors from origin to user-facing display. Are they helpful or generic 500s?
+3. Edge cases at boundaries — empty states, loading states, concurrent access, large data sets, special characters flowing through the stack.
+4. Environment variable completeness — cross-check `.env.example` against all code references.
+
+**Developer — Functional Sweep:**
+1. Walk every user story from the spec end-to-end. Does it feel right, not just "do tests pass"?
+2. Input boundary testing — empty, maximum length, special characters, rapid submission.
+3. Auth boundary testing — unauthenticated access to protected routes, role escalation, token expiry/refresh.
+4. AI feature robustness — edge-case inputs, fallback behavior when API is simulated as down.
+5. Navigation completeness — every link, button, and interactive element.
+
+All findings logged as GitHub issues with appropriate labels (`architecture`, `code-quality`, `bug`, `integration`, `ux`).
+
+### Step 6.2 — Fix Critical and High Issues
+
+Work through findings using the Phase 4 task loop. Group independent fixes into waves, spawn developer teammates simultaneously. Priority: bugs → integration issues → architectural drift → code quality. Medium/Low issues that don't affect core functionality are logged for Phase 8 (Iteration).
+
+### Step 6.3 — Regression Verification
+
+1. Full test suite passes.
+2. Playwright E2E suite passes — all milestone truth conditions still hold.
+3. Production Docker build verified: `docker compose -f docker-compose.prod.yml up --build` → all services healthy.
+
+### Gate — `🧑 Human`
+
+- [ ] Architect structural review complete — drift documented and resolved.
+- [ ] Integration seam review complete — boundary bugs fixed.
+- [ ] Functional sweep complete — all user stories verified end-to-end.
+- [ ] All Critical and High sweep issues resolved.
+- [ ] Full test suite and Playwright E2E pass after fixes.
+- [ ] Production Docker build verified.
+- [ ] Remaining Medium/Low issues logged for Phase 8.
+
+---
+
+## Phase 7: Deployment & Launch Prep
 
 ### Goal
 
@@ -1262,7 +1317,7 @@ Get the application running in a production(-like) environment with monitoring.
 2. **Verify containerized build from main**: Check out `main`, run `docker compose -f docker-compose.prod.yml up --build`. Everything must start healthy from `main`. This confirms `main` has all the files and configs needed for production.
 3. **Verify .env.example is complete**: Every env var used in the codebase, Dockerfile, docker-compose, and scripts must have an entry in `.env.example` with a description.
 
-### Step 6.1 — Production Deployment Scripts
+### Step 7.1 — Production Deployment Scripts
 
 DevOps creates production-ready deployment scripts:
 
@@ -1270,9 +1325,9 @@ DevOps creates production-ready deployment scripts:
 - **`scripts/deploy-rollback.sh`** — Identify previous version → revert → verify backward-compatible migrations → smoke test.
 - **`scripts/seed.sh`** — Seed admin account + sample data. Configurable per environment (dev/staging/production).
 
-Both deploy scripts must be tested end-to-end before the Phase 6 gate.
+Both deploy scripts must be tested end-to-end before the Phase 7 gate.
 
-### Step 6.2 — Production Domain & Infrastructure
+### Step 7.2 — Production Domain & Infrastructure
 
 1. Configure the production domain (provided in inputs).
 2. Set up DNS records pointing to the hosting provider.
@@ -1289,7 +1344,7 @@ Both deploy scripts must be tested end-to-end before the Phase 6 gate.
 8. Configure logging for production (structured JSON logs, appropriate levels).
 9. Set up AI cost monitoring alerts (daily/weekly spend thresholds).
 
-### Step 6.3 — Pre-Launch Checklist
+### Step 7.3 — Pre-Launch Checklist
 
 Agent runs through and confirms:
 
@@ -1310,7 +1365,7 @@ Agent runs through and confirms:
 - [ ] `.env.example` is up to date (including all AI-related env vars).
 - [ ] README has correct local setup and deploy instructions.
 
-### Step 6.4 — Demo Script
+### Step 7.4 — Demo Script
 
 Create `docs/DEMO.md`:
 
@@ -1331,7 +1386,7 @@ Create `docs/DEMO.md`:
 
 ---
 
-## Phase 7: Iteration & Backlog
+## Phase 8: Iteration & Backlog
 
 ### Goal
 
@@ -1383,9 +1438,9 @@ This phase is ongoing and follows the same Development Loop from Phase 4.
 | `.planning/DECISIONS.md` | Decision log — settled questions across sessions | Phase 0+ |
 | `docs/PRODUCT_SPEC.md`   | Full product specification with requirements         | Phase 1    |
 | `docs/ARCHITECTURE.md`   | Technical architecture, data model, API design, AI architecture | Phase 2    |
-| `docs/DEMO.md`           | MVP demo walkthrough script                          | Phase 6    |
-| `scripts/deploy.sh`      | Production deployment script                         | Phase 6    |
-| `scripts/deploy-rollback.sh` | Rollback to previous deployment                  | Phase 6    |
+| `docs/DEMO.md`           | MVP demo walkthrough script                          | Phase 7    |
+| `scripts/deploy.sh`      | Production deployment script                         | Phase 7    |
+| `scripts/deploy-rollback.sh` | Rollback to previous deployment                  | Phase 7    |
 | `scripts/seed.sh`        | Database seed script                                 | Phase 4    |
 | `skills/`                | Downloaded skill files for agent reference            | Phase 2    |
 | `.env.example`           | Environment variable template (including AI keys)    | Phase 2    |
@@ -1430,7 +1485,7 @@ Set these up in the repo during Phase 0:
 
 ## Appendix D: Future Automation (Post-v1.0)
 
-These autonomous pipelines are **not part of the MVP build**. They are documented here for Phase 7 (Iteration & Backlog) once the product is stable, the test suite is trustworthy, and the team has confidence in the codebase.
+These autonomous pipelines are **not part of the MVP build**. They are documented here for Phase 8 (Iteration & Backlog) once the product is stable, the test suite is trustworthy, and the team has confidence in the codebase.
 
 ### Autonomous Pipelines to Consider
 

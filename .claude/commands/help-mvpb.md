@@ -34,8 +34,9 @@ Then display ONLY the reference content below. Do NOT add project-specific analy
 - `/plan` — Phase 3: Break requirements into milestones, issues, waves
 - `/build` — Phase 4: Build the app milestone by milestone
 - `/harden` — Phase 5: Security audit, quality review, bug fixes
-- `/deploy` — Phase 6: Production deployment, monitoring, demo script
-- `/iterate` — Phase 7: Post-MVP improvements and backlog
+- `/sweep` — Phase 6: Final code sweep by Architect + Developers
+- `/deploy` — Phase 7: Production deployment, monitoring, demo script
+- `/iterate` — Phase 8: Post-MVP improvements and backlog
 
 **Utility Commands:**
 - `/status` — Quick status: phase, milestone, wave, blockers
@@ -54,17 +55,19 @@ Then display ONLY the reference content below. Do NOT add project-specific analy
 /plan                   ← create milestones + waves (human approves)
 /build                  ← develop (repeat until done)
 /harden                 ← security audit (human approves)
+/sweep                  ← builders' final review (human approves)
 /deploy                 ← ship it (human approves)
 ```
 
 ## Your Job
 
-5 human gates. Between them, provide API keys when asked and make decisions when escalated. Otherwise, stay out of the way.
+6 human gates. Between them, provide API keys when asked and make decisions when escalated. Otherwise, stay out of the way.
 
 - After `/spec` — What the product does
 - After `/architect` — How it's built
 - After `/plan` — The build order
 - After `/harden` — Security posture
+- After `/sweep` — Code quality and integration
 - After `/deploy` — Launch readiness
 
 ## Key Files

@@ -242,7 +242,7 @@ These decisions are *implementation* — they affect how the product is built, n
 
 The team escalates to the human for decisions that affect the product's direction, scope, cost, or risk profile:
 
-- **Human gates** (defined checkpoints at the end of Phases 1, 2, 5, and 6) where the human reviews and approves major deliverables.
+- **Human gates** (defined checkpoints at the end of Phases 1, 2, 5, 6, and 7) where the human reviews and approves major deliverables.
 - **Scope changes or pivots** — anything that deviates from the approved specification.
 - **Product or design questions** not answered by the spec — "Should the chatbot be visible to unauthenticated users?"
 - **New service integrations** that require API keys — the agent cannot assume access to a service. It must request the key, explain why it's needed, and propose a fallback if denied.
@@ -268,7 +268,7 @@ This prevents a common failure mode where the agent writes integration code for 
 
 ### 6.1 Why Phases Matter
 
-The framework is organized into seven sequential phases, each with a clear gate. The phases exist to prevent a specific anti-pattern: the agent jumping to implementation before the specification is clear, or deploying before security is verified.
+The framework is organized into eight sequential phases, each with a clear gate. The phases exist to prevent a specific anti-pattern: the agent jumping to implementation before the specification is clear, or deploying before security is verified.
 
 Each phase produces artifacts that feed into the next phase. The spec feeds the architecture. The architecture feeds the task breakdown. The task breakdown feeds development. This creates a traceable chain from requirement to implementation.
 
@@ -286,15 +286,17 @@ Each phase produces artifacts that feed into the next phase. The spec feeds the 
 
 **Phase 5: Quality & Security Hardening** — Comprehensive security audit (including AI-specific risks), brainstorming session for edge cases, performance review. Gate: Human reviews security findings.
 
-**Phase 6: Deployment & Launch Prep** — Production deployment scripts, domain and infrastructure setup, pre-launch checklist, demo script. Gate: Human approves for launch.
+**Phase 6: Final Code Sweep** — Architect and Developers review the complete codebase for architectural drift, integration seams, and functional bugs. The builders see patterns that adversarial reviewers miss — inconsistencies across modules built in different waves, dead code, and boundary issues between components that were never tested together. Gate: Human reviews sweep findings.
 
-**Phase 7: Iteration & Backlog** — Retrospective, backlog grooming, continuous improvement. No gate — this is ongoing.
+**Phase 7: Deployment & Launch Prep** — Production deployment scripts, domain and infrastructure setup, pre-launch checklist, demo script. Gate: Human approves for launch.
+
+**Phase 8: Iteration & Backlog** — Retrospective, backlog grooming, continuous improvement. No gate — this is ongoing.
 
 ### 6.3 Gate Design Philosophy
 
 Gates serve two purposes: quality assurance and human control. The framework assigns gates to either the human or the PM agent based on the type of decision involved.
 
-**Human gates** are placed where the decision is *strategic*: approving the product spec (Phase 1), approving the architecture (Phase 2), approving the task plan (Phase 3), accepting the security posture (Phase 5), and authorizing deployment (Phase 6). These are decisions that require product judgment, risk assessment, or business context that the agent does not have.
+**Human gates** are placed where the decision is *strategic*: approving the product spec (Phase 1), approving the architecture (Phase 2), approving the task plan (Phase 3), accepting the security posture (Phase 5), accepting the code quality sweep (Phase 6), and authorizing deployment (Phase 7). These are decisions that require product judgment, risk assessment, or business context that the agent does not have.
 
 **Agent (PM) gates** are placed where the check is *procedural*: verifying that all inputs are collected (Phase 0), validating that all milestones are complete (Phase 4). These are checklist verifications that the PM can perform autonomously.
 
@@ -515,8 +517,9 @@ A recommended structure:
 4. **Task Breakdown** (human gate) — milestones defined with truth conditions, issues created and sized atomically, waves planned.
 5. **Development** (agent gate per milestone, human sign-off per milestone, integration gate across milestones) — wave-by-wave execution with fresh worker contexts and cross-role review.
 6. **Quality & Security Hardening** (human gate) — comprehensive security audit, edge case brainstorming, AI-specific security review.
-7. **Deployment** (human gate) — production scripts, domain setup, pre-launch checklist, demo.
-8. **Iteration** (ongoing) — retrospective, backlog, continuous improvement.
+7. **Final Code Sweep** (human gate) — builders review the complete codebase for architectural drift, integration seams, and functional bugs that only the people who built the system can spot.
+8. **Deployment** (human gate) — production scripts, domain setup, pre-launch checklist, demo.
+9. **Iteration** (ongoing) — retrospective, backlog, continuous improvement.
 
 ### 12.3 Define the Team
 

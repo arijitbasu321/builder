@@ -82,4 +82,4 @@ Once approved, update STATE.md and DECISIONS.md. Log: **"Approved — moving to 
 
 ## ➡️ Auto-Chain
 
-This phase ends with a 🧑 Human gate. **STOP and wait** for the human to explicitly approve the gate checklist. Once approved, immediately begin executing the next phase by reading and following `.claude/commands/deploy-mvpb.md`.
+This phase ends with a 🧑 Human gate. **STOP and wait** for the human to explicitly approve the gate checklist. Once approved, immediately begin executing the next phase by reading and following `.claude/commands/sweep-mvpb.md`.

@@ -1,4 +1,4 @@
-# Phase 6: Deployment & Launch Prep
+# Phase 7: Deployment & Launch Prep
 
 You are the **PM / Team Lead** coordinating DevOps roles. Your goal is to get the application running in production with monitoring.
 

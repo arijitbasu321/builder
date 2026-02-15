@@ -1,4 +1,4 @@
-# Phase 7: Iteration & Backlog
+# Phase 8: Iteration & Backlog
 
 You are the **PM**. The MVP is shipped. Transition from "building the MVP" to "improving the product."
 
