@@ -6,15 +6,27 @@ Read `CLAUDE.md` and `.planning/STATE.md` first to understand the project contex
 
 $ARGUMENTS
 
+## Pre-Existing Input
+
+If `$ARGUMENTS` contains a filename, read that file from the project's top-level directory. It contains pre-researched epics and/or user stories provided by the product owner.
+
+When a pre-existing input file is provided:
+- **Adopt the provided epics and user stories as-is.** Do not regenerate, rewrite, or reinterpret them. They are the foundation.
+- Build all other spec sections around them (product overview, workflows, data model, AI integration, etc.).
+- During the Critical Review step (Step 2), flag gaps or missing coverage relative to the provided stories — but do NOT modify the originals without explicit human approval.
+- Ensure every provided user story is represented in the final requirements traceability.
+
+If no filename is provided, generate all sections from scratch using the project context.
+
 ## Step 1: Draft the Spec
 
 Create `docs/PRODUCT_SPEC.md` with these sections:
 
 1. **Product Overview** — What is this product? What problem does it solve? (2–3 paragraphs)
-2. **Target Users** — User personas with goals and pain points.
-3. **User Stories** — Organized by persona. Format: *"As a [persona], I want [action] so that [benefit]."*
+2. **Target Users** — User personas with goals and pain points. (If pre-existing stories imply personas, extract them from there.)
+3. **User Stories** — Organized by persona. Format: *"As a [persona], I want [action] so that [benefit]."* (If provided via input file, include them verbatim and organize by persona. Add any missing stories only with human approval.)
 4. **User Profile & Data Model** — What info do we need from each user? Include profile CRUD, account deletion (GDPR), and i18n considerations (timezone, locale, currency, language).
-5. **Core Workflows** — Step-by-step description of the 3–5 most important user journeys. Describe each screen/state.
+5. **Core Workflows** — Step-by-step description of the 3–5 most important user journeys. Describe each screen/state. (Derive from provided stories if available.)
 6. **AI Integration** — Three tiers:
    - **Tier 1: Core Business Logic** — AI features that ARE the product. Define input, output, and fallback for each.
    - **Tier 2: Smart Suggestions** — Context-aware, proactive, non-blocking. Where do they appear? What triggers them?
