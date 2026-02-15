@@ -1078,7 +1078,8 @@ For **each task**, the PM spawns a teammate via Agent Teams with a clean context
 │ 10. If reviewer requests changes → PM sends feedback to a        │
 │     Developer teammate via SendMessage (no human needed)         │
 │ 11. Review passes → PM merges to develop                         │
-│ 12. PM updates .planning/STATE.md and moves issue to "Done"      │
+│ 12. PM updates .planning/STATE.md, closes GitHub issue            │
+│     (`gh issue close <number>`) — moves to Done on project board │
 └──────────────────────────────────────────────────────────────────┘
 ```
 

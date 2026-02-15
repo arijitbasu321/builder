@@ -69,6 +69,8 @@ Log every finding as a GitHub issue with label `security` and severity.
 
 Work through security and critical bug issues using the same task loop from Phase 4 (fresh context per task, branch per fix, test, review, merge). **Spawn developer teammates for independent fixes simultaneously** — group fixes that don't conflict into waves and dispatch them in parallel, exactly as Phase 4 wave execution works.
 
+After each fix is merged, close the corresponding GitHub issue (`gh issue close <number>`) so the project board stays accurate.
+
 ## Gate — 🧑 Human
 
 Present findings and resolution to the human:

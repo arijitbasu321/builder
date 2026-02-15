@@ -88,7 +88,7 @@ Just do it. The human approved the wave plan in Phase 3. Execute it.
 - **DEFAULT (most tasks):** PM does a lightweight review — quick architecture + security check in one pass.
 - **SENSITIVE tasks (auth, AI, data handling, API contracts):** Spawn separate Architect, Security, and QA reviewers.
 - If changes requested → new worker gets feedback and fixes.
-- Review passes → PM merges to `develop`, updates STATE.md, moves issue to Done.
+- Review passes → PM merges to `develop`, updates STATE.md, closes the GitHub issue (`gh issue close <number>`) which automatically moves it to Done on the project board.
 
 **When human input is needed during build (e.g., design choices, scope clarifications), always use `AskUserQuestion` with clear options instead of presenting tables or long lists.**
 

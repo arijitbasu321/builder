@@ -64,7 +64,7 @@ Work through the issues found in Step 1, using the same task loop from Phase 4:
 - Group independent fixes into waves
 - Spawn developer teammates simultaneously for each wave
 - Each teammate: branch → fix → test → commit → report back
-- PM reviews and merges
+- PM reviews, merges, and closes the GitHub issue (`gh issue close <number>`)
 
 Priority order:
 1. **Bugs** — Broken functionality comes first
