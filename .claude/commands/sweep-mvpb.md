@@ -54,6 +54,7 @@ A Developer systematically walks through every user-facing feature and tries to 
 3. **Auth boundary testing** — Access every authenticated route without auth (direct URL). Access admin routes as a regular user. Test token expiry — does refresh work or does the user get kicked out silently?
 4. **AI feature robustness** — Send edge-case inputs to every AI feature: very long text, empty text, text in other languages, adversarial prompts. Does the fallback work when you simulate API failure?
 5. **Navigation completeness** — Click every link, button, and interactive element. Are there dead links? Buttons that do nothing? Pages that 404?
+6. **Keyboard navigation** — Tab through every page using keyboard only. Can you reach every interactive element? Can you submit forms? Can you open and close modals? Is there a visible focus indicator on every focusable element? Is there a "Skip to main content" link?
 
 Output: GitHub issues for each finding, labeled `bug` or `ux`.
 

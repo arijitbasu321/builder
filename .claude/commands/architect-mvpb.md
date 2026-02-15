@@ -50,7 +50,8 @@ Create `docs/ARCHITECTURE.md` with:
 7. **Error Handling Strategy** — Global error boundary, centralized handler, structured error format, logging
 8. **Environment & Configuration** — All environments, env var naming, secrets management, `.env.example`
 9. **Folder Structure** — Proposed layout with explanations
-10. **AI Architecture** — Critical section:
+10. **Accessibility Strategy** — Semantic HTML conventions, keyboard navigation plan, focus management for modals/dialogs, color contrast requirements (4.5:1 normal text, 3:1 large text), skip navigation, form accessibility (visible labels, associated error messages), axe-core testing approach.
+11. **AI Architecture** — Critical section:
     - AI Service Layer (centralized, all calls go through it)
     - Model Selection per tier
     - Prompt Management (prompts as code, versioned)
@@ -61,7 +62,7 @@ Create `docs/ARCHITECTURE.md` with:
     - AI Response Caching (cacheable queries, TTL per use case)
     - Cost Estimation (~X calls/user/day × ~Y cost = ~Z monthly)
     - Token & Cost Tracking schema
-11. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infrastructure task MUST reference this section. Include:
+12. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infrastructure task MUST reference this section. Include:
     - **Service map**: Every container/process, its internal port, its exposed port, and how services communicate (Docker network, localhost, etc.)
     - **Port mapping table**: Internal vs external ports. Which ports are exposed to the host vs Docker-internal only. All scripts and health checks must use the correct (external) port.
     - **Env var flow**: For each env var: where it's defined, how it reaches the container (build arg, runtime env, compose env_file, .env auto-load), and whether it's build-time or runtime. For Next.js: which vars need `NEXT_PUBLIC_` prefix, which are server-only, which are needed at build time for static generation / Prisma generate.

@@ -630,7 +630,15 @@ Create `docs/ARCHITECTURE.md` with:
    - Secrets management approach.
    - `.env.example` template.
 9. **Folder Structure** — Proposed project directory layout with explanations.
-10. **AI Architecture** — This is a critical section. Document:
+10. **Accessibility Strategy** — Document the approach for meeting WCAG 2.1 AA (required by the NFRs):
+    - Semantic HTML conventions — use native elements (`<button>`, `<nav>`, `<main>`, `<form>`) before ARIA.
+    - Keyboard navigation plan — all interactive elements reachable via Tab, custom components have appropriate key handlers, visible focus indicators on every focusable element.
+    - Focus management — how modals, dialogs, drawers, and toast notifications handle focus trapping and restoration.
+    - Color contrast — minimum 4.5:1 for normal text, 3:1 for large text. Document any brand colors that need adjustment.
+    - Skip navigation link — "Skip to main content" link as first focusable element on every page.
+    - Form accessibility — every input has a visible label (not just placeholder), error messages are associated with inputs via `aria-describedby`, required fields are marked.
+    - Testing approach — axe-core integrated into Playwright E2E tests for automated WCAG scanning.
+11. **AI Architecture** — This is a critical section. Document:
     - **AI Service Layer**: A dedicated module/service that wraps all AI API calls. No part of the codebase should call the AI provider directly — everything goes through this layer. This enables: centralized error handling, token tracking, easy model swapping, and mock/stub testing.
     - **Model Selection**: Which model for which task. The human chose a primary provider and model in Phase 0 — the Architect decides whether to use the same model for all tiers or use a lighter/cheaper model from the same provider for Tier 2/3 features. Document the model per tier with reasoning.
     - **Prompt Management**: How prompts are stored, versioned, and maintained. Prompts should be treated as code — stored in files (not inline strings), version-controlled, and reviewed.
@@ -651,7 +659,7 @@ Create `docs/ARCHITECTURE.md` with:
       - **Regression gate**: A prompt change that reduces the eval score below the established baseline must not merge without explicit justification logged in DECISIONS.md. This is the prompt equivalent of "all tests must pass before merge."
       - **Prompt versioning**: Store prompts as versioned files (e.g., `prompts/meal-plan-v1.md`, `prompts/meal-plan-v2.md`). The service layer references the active version. Rollback means pointing to the previous version file.
       - **Tier coverage**: Tier 1 (core business logic) requires full eval coverage. Tier 2 (suggestions) requires at least 10 eval cases. Tier 3 (chatbot) requires guardrail boundary tests (does it stay on-topic? does it refuse off-topic requests?) but not output quality scoring.
-11. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infra task MUST reference this section. Include:
+12. **Deployment Topology** — This is the operational source of truth for all DevOps tasks. Every infra task MUST reference this section. Include:
     - **Service map**: Every container/process, its internal port, its exposed port, and how they communicate (Docker network, localhost, etc.)
     - **Port mapping table**: Internal vs external ports. Which ports are exposed to the host. Which are Docker-internal only. Scripts and health checks must use the correct (external) port.
     - **Env var flow**: For each env var, specify: where it's defined, how it reaches the container (build arg, runtime env, compose env_file, .env auto-load), and whether it's build-time or runtime. For Next.js: which vars need `NEXT_PUBLIC_` prefix, which are server-only, which are needed at build time for static generation / Prisma generate.
@@ -829,11 +837,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture.
 26. **Validate infrastructure by execution, not just review.** Dockerfiles must be built (`docker build`). Docker Compose files must be started (`docker compose up`). Deploy scripts must be run. Nginx configs must be loaded. If an infrastructure artifact hasn't been executed successfully, it is not done — no matter how correct it looks. Code review catches logic errors; only execution catches runtime errors (missing dependencies, wrong paths, port conflicts, env var scoping, Alpine compatibility).
 27. **Defensive scripting.** All shell scripts must: start with `set -euo pipefail`; never use `2>/dev/null` or `|| true` to suppress errors unless there is a specific, commented reason explaining what error is expected and why it's safe to ignore; explicitly load required env files (e.g., `source .env.production` or `--env-file .env.production`) — never assume env vars exist in the shell; validate required env vars at the top of the script before using them; exit non-zero on failure — never print "may have succeeded" when you don't know; use the correct ports/URLs from the deployment topology, not hardcoded dev defaults.
 28. **Every API call must handle errors.** Frontend code that calls an API endpoint must check the response status before using the data. `const data = await res.json()` without checking `res.ok` is a bug. Wrap API calls with proper error handling: check status, parse error messages, show user-facing feedback. Silent failures are worse than crashes — they create ghost states the user can't diagnose.
+29. **Build accessible by default.** Use semantic HTML elements before ARIA attributes. Every interactive element must be keyboard-accessible with a visible focus indicator. Every form input needs a visible label. Every image needs alt text. Run axe-core accessibility scans in Playwright tests — WCAG violations are bugs, not nice-to-haves.
 
 ## Testing
 - **Unit tests**: [framework, e.g., Jest / pytest]
 - **Integration tests**: [framework]
 - **E2E tests**: Playwright
+- **Accessibility tests**: axe-core via `@axe-core/playwright` — automated WCAG 2.1 AA scanning on every page. Keyboard navigation tests for core workflows.
 - **AI service tests**: Mock the AI API — test prompt construction, response parsing, fallbacks, and guardrails without making real API calls.
 - **Coverage target**: 80% minimum, 90%+ for critical paths
 - **Test data**: Use seed scripts, never test against production data.
@@ -1076,6 +1086,7 @@ Final wave of each milestone — verification (3 teammates, spawned simultaneous
    c. **Auth flow completeness**: Verify the full token lifecycle — login → use app → token expiry → what happens? Is there a refresh mechanism? Does it work? Test logout. Test expired sessions.
    d. **Visual/contrast check**: Take Playwright screenshots of every major page in both light and dark mode. Review for obvious contrast issues, overlapping elements, broken layouts.
    e. **Responsive check**: Take Playwright screenshots at mobile (375px), tablet (768px), and desktop (1280px) widths. Flag layout breaks.
+   f. **Accessibility scan**: Run `@axe-core/playwright` on every major page. Flag all WCAG 2.1 AA violations. Test keyboard-only navigation through core workflows (Tab through the page, can you reach every interactive element? Can you submit forms? Can you navigate menus?). Verify focus management on modals/dialogs (does focus trap inside? does it restore on close?).
 
 > **Context management rule**: If the PM's own context exceeds ~60% utilization, it should start a new session, re-read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md`, and continue orchestrating. No work is lost because all state is in files.
 

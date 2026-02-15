@@ -56,6 +56,7 @@ Every element of the framework described in this paper exists because it solves 
 | Wave-based execution with file-independence checks | Dependency conflicts, parallel write conflicts |
 | Recovery & pivot protocol | Grinding against broken assumptions |
 | Trust-tiered skills with security vetting | Supply chain injection via malicious skill files |
+| Automated accessibility scanning in verification waves | Accessibility promises in spec but never verified |
 
 ---
 
@@ -213,6 +214,8 @@ The framework introduces **truth conditions**, borrowed from the GSD framework's
 These are not implementation tasks — they are *outcomes*. QA verifies each truth condition independently at the milestone checkpoint. If a truth condition fails, the milestone is not complete, regardless of how many tasks are checked off.
 
 This creates a stronger verification loop than task completion alone. Tasks are how you get there; truth conditions are how you know you've arrived.
+
+The same verification principle extends to non-functional requirements. The product specification promises WCAG 2.1 AA accessibility, but unless the verification wave actively checks for it, the promise is empty. The framework integrates automated accessibility scanning (axe-core via Playwright) into every verification wave, making accessibility a verified outcome rather than an aspirational checklist item. WCAG violations are treated as bugs, not suggestions.
 
 ---
 

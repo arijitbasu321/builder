@@ -151,6 +151,7 @@ Final wave — verification (3 teammates, spawned simultaneously):
    c. Auth flow completeness — test full token lifecycle (login → expiry → refresh/redirect)
    d. Visual check — Playwright screenshots in light/dark mode, flag contrast issues
    e. Responsive check — screenshots at 375px, 768px, 1280px widths
+   f. Accessibility scan — run `@axe-core/playwright` on every major page, flag WCAG 2.1 AA violations. Test keyboard-only navigation through core workflows. Verify focus management on modals/dialogs.
 
 The QA (Truth Condition Tests) worker in the verification wave must:
 1. Write Playwright tests that verify each truth condition as a real user would (browser, clicks, form fills, navigation).
@@ -158,7 +159,7 @@ The QA (Truth Condition Tests) worker in the verification wave must:
 3. If any truth condition cannot be verified with a Playwright test (e.g., pure backend), write an API-level integration test instead — but default to Playwright for anything user-facing.
 4. All Playwright tests must pass before the milestone checkpoint is presented to the human.
 
-If the project does not yet have Playwright configured, the FIRST task of the first verification wave is "Set up Playwright with initial config, browser install, and one smoke test that loads the app." Every subsequent verification wave adds tests.
+If the project does not yet have Playwright configured, the FIRST task of the first verification wave is "Set up Playwright with initial config, browser install, `@axe-core/playwright` for accessibility scanning, and one smoke test that loads the app." Every subsequent verification wave adds tests.
 
 A milestone cannot pass its checkpoint if its truth conditions are not covered by automated tests — Playwright for UI flows, integration tests for backend-only flows.
 
