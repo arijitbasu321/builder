@@ -12,7 +12,7 @@ This paper presents a framework for organizing AI coding agents into a structure
 
 The framework was developed through iterative design and draws on concepts from the GSD (Get Shit Done) framework, the Ralph Wiggum autonomous iteration pattern, Claude Code's native Agent Teams feature, and established software engineering practices adapted for the unique constraints of AI agent orchestration.
 
-The result is a playbook that a technical product owner can hand to a Claude Code instance. The instance then self-organizes into a team of specialized roles — using Agent Teams, sub-agents via the Task tool, or manual session management — and builds a complete, production-ready application from idea to deployment, with human involvement limited to strategic decision points.
+The result is a playbook that a technical product owner can hand to a Claude Code instance. The instance then self-organizes into a team of specialized roles — using Agent Teams as the required default execution model (with sub-agents via the Task tool or manual session management as fallbacks) — and builds a complete, production-ready application from idea to deployment, with human involvement limited to strategic decision points.
 
 ---
 
@@ -62,11 +62,11 @@ Every element of the framework described in this paper exists because it solves 
 
 ### 2.1 Why Roles Matter
 
-The framework assigns six distinct roles: PM (Project Manager), Architect, Developer, QA (Quality Assurance), Security, and DevOps. These roles can be executed by teammates in Claude Code's native Agent Teams feature, by sub-agents via the Task tool, or by a single instance switching hats between manual sessions. The execution model is secondary — what matters is the role separation, because it creates **adversarial review**.
+The framework assigns six distinct roles: PM (Project Manager), Architect, Developer, QA (Quality Assurance), Security, and DevOps. The default execution model is Claude Code's native Agent Teams, where the PM operates as team lead and each role is fulfilled by an independent teammate. When Agent Teams is unavailable, sub-agents via the Task tool serve as a fallback, and manual session restarts as a last resort. While the execution model affects capability and efficiency, what matters most is the role separation itself, because it creates **adversarial review**.
 
-When a single agent writes code and reviews it, the review is performative. The agent already "agrees" with its own implementation. But when a separate teammate — or the same instance explicitly instructed to adopt the Security role — reviews Developer work with instructions to look for vulnerabilities, the quality of the review materially improves. The role creates a different evaluation lens. Agent Teams makes this even more effective: the Security reviewer is a genuinely separate context that never saw the implementation reasoning, only the output.
+When a single agent writes code and reviews it, the review is performative. The agent already "agrees" with its own implementation. But when a separate teammate reviews Developer work with instructions to look for vulnerabilities, the quality of the review materially improves. The role creates a different evaluation lens. Agent Teams makes this structurally robust in a way that sub-agents cannot: each teammate operates in its own independent context window, loads the project's CLAUDE.md automatically, maintains a persistent identity throughout the session, and communicates with other teammates via `SendMessage` rather than through a shared orchestrator. The Security reviewer is not merely a fresh context — it is a genuinely separate agent that never saw the implementation reasoning, only the output. It has its own loaded instructions, its own perspective, and its own judgment.
 
-This is analogous to how a senior engineer can simultaneously hold the perspective of "person who wrote this code" and "person reviewing a pull request" — but only if they consciously switch modes. The role assignments force this mode-switching. Agent Teams enforces it structurally.
+This is analogous to how a senior engineer can simultaneously hold the perspective of "person who wrote this code" and "person reviewing a pull request" — but only if they consciously switch modes. The role assignments force this mode-switching. Sub-agents simulate it with fresh contexts. Agent Teams enforces it structurally — each teammate is a distinct agent with its own identity, not a temporary subprocess that disappears after one task.
 
 ### 2.2 Role Definitions
 
@@ -122,11 +122,19 @@ This means the 50th task in a project gets the same quality context as the 1st t
 
 The delegation model can be implemented at three levels of Claude Code capability:
 
-**Agent Teams** (preferred) — Claude Code's native multi-agent feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). The PM acts as team lead and spawns teammates for each role. Each teammate gets its own full context window and loads the project's CLAUDE.md, MCP servers, and skills automatically. Teammates execute in parallel within a wave. This is the highest-capability option: genuine parallel execution with separate context windows. Key trade-off: token cost scales linearly with team size, so spawning five teammates for a CSS fix is wasteful. The inverted review default (lightweight review for most tasks, full review pipeline for sensitive changes) becomes an economic decision as well as a velocity one.
+**Agent Teams** (primary, required default) — Claude Code's native multi-agent feature. The PM acts as team lead and spawns teammates for each role. This is the required execution model for several reasons that go beyond convenience:
 
-**Sub-agents via Task tool** (fallback) — The PM uses Claude Code's built-in Task tool to spawn sub-agents programmatically within a single session. Each sub-agent gets a fresh context window, does one task, and reports back. Sub-agents can only communicate with the PM, not with each other. Simpler than Agent Teams but still automated.
+- *Independent context windows.* Each teammate gets its own full context window, completely isolated from the PM's orchestration state and from other teammates' work. This is not merely "fresh context" — it is parallel context. Five teammates working simultaneously means five full context windows operating at peak quality, compared to one context window being reused serially.
+- *Automatic CLAUDE.md loading.* Every teammate automatically loads the project's CLAUDE.md, MCP servers, and skills when it starts. The PM does not need to manually inject instructions into each delegation — the teammate arrives with the project's golden rules, tech stack, and conventions already internalized.
+- *Persistent identity.* A teammate maintains its role identity throughout its lifecycle. A Security teammate does not need to be reminded it is playing the Security role on each interaction — it *is* the Security role. This produces more consistent, deeper role-specific analysis than a sub-agent that receives role instructions as a one-shot prompt.
+- *Message-based coordination.* Teammates communicate via `SendMessage`, enabling direct peer-to-peer coordination. A Developer teammate can message the Architect teammate to clarify an interface contract without routing through the PM. This is structurally different from sub-agents, which can only communicate with the PM and never with each other.
+- *True parallel execution.* Multiple teammates execute simultaneously within a wave. This is genuine concurrency, not sequential delegation with parallel-sounding language.
 
-**Manual session restarts** (last resort) — The PM closes the current session and starts fresh for each task. The PM re-reads state files at the start of each session. This is the most manual approach but works when the other options are unavailable.
+The key trade-off is economic: token cost scales linearly with team size, so spawning five teammates for a CSS fix is wasteful. The inverted review default (lightweight review for most tasks, full review pipeline for sensitive changes) becomes an economic decision as well as a velocity one.
+
+**Sub-agents via Task tool** (Tier 2 fallback) — The PM uses Claude Code's built-in Task tool to spawn sub-agents programmatically within a single session. Each sub-agent gets a fresh context window, does one task, and reports back. Sub-agents cannot communicate with each other — all coordination routes through the PM. They do not maintain persistent identity across interactions, and the PM must manually include relevant context in each delegation. This is simpler than Agent Teams and still automated, but it sacrifices parallel execution, peer coordination, and the automatic context loading that makes Agent Teams the stronger model.
+
+**Manual session restarts** (Tier 3, last resort) — The PM closes the current session and starts fresh for each task. The PM re-reads state files at the start of each session. This is the most manual approach but works when the other options are unavailable.
 
 ### 3.3 Persistent State via Files
 
@@ -140,13 +148,13 @@ If each worker has a fresh context, how does the team maintain continuity? The a
 
 **`CLAUDE.md`** is the project instruction file — the golden rules, tech stack, architecture summary, and team structure. It is the first thing every worker reads. It defines the invariants that all agents must respect regardless of what specific task they are working on.
 
-These four files form the team's **institutional memory**. They replace the context window as the source of truth and enable the team to operate across arbitrarily many sessions without degradation. Critically, this persistence layer becomes even more important with Agent Teams, where `/resume` and `/rewind` do not restore teammates — the files are the only continuity mechanism.
+These four files form the team's **institutional memory**. They replace the context window as the source of truth and enable the team to operate across arbitrarily many sessions without degradation. This persistence layer is especially critical under Agent Teams, where `/resume` and `/rewind` do not restore teammates — the files are the only continuity mechanism. Because Agent Teams teammates load CLAUDE.md automatically, the instruction file becomes the primary channel for transmitting project invariants to every teammate without explicit PM delegation. The other three files (STATE.md, LEARNINGS.md, DECISIONS.md) must be passed explicitly by the PM when spawning teammates, which reinforces the discipline of maintaining them accurately.
 
 ### 3.4 The 60% Rule
 
 The framework specifies that if the PM's context utilization exceeds approximately 60%, it should start a new session. The PM reads CLAUDE.md, STATE.md, LEARNINGS.md, and DECISIONS.md, and continues orchestrating from where it left off. This is a proactive measure — it prevents degradation rather than recovering from it.
 
-In practice, this means the PM might start 3-5 sessions over the course of building a full application, while spawning dozens of sub-agents. The sessions are cheap (a few minutes of re-reading state); the alternative (degraded orchestration quality) is expensive.
+In practice, this means the PM might start 3-5 sessions over the course of building a full application, while spawning dozens of teammates (or sub-agents, if using the fallback model). The sessions are cheap (a few minutes of re-reading state); the alternative (degraded orchestration quality) is expensive.
 
 ---
 
@@ -154,7 +162,7 @@ In practice, this means the PM might start 3-5 sessions over the course of build
 
 ### 4.1 Atomic Task Sizing
 
-For the fresh sub-agent model to work, each task must be small enough for a single sub-agent to complete without context degradation. The framework defines "atomic" tasks with specific constraints:
+For the fresh delegation model to work — whether the worker is an Agent Teams teammate or a sub-agent — each task must be small enough for a single worker to complete without context degradation. The framework defines "atomic" tasks with specific constraints:
 
 - Each task should touch three or fewer logical units in its core change, where a unit is a set of cohesive files for one concern (for example, a route handler plus its migration plus its test). This prevents tasks from sprawling across unrelated parts of the codebase.
 - The task description plus relevant source files plus CLAUDE.md should fit within 50% of the context window. If it doesn't, the task needs to be split.
@@ -169,7 +177,7 @@ The anti-pattern is "Implement user authentication" as a single task. The correc
 
 Within each milestone, the PM organizes tasks into **waves** based on their dependency relationships. A wave is a set of tasks that are independent of each other — they can be executed in any order (or in parallel) without conflicts. A wave starts only after the previous wave is fully complete.
 
-This concept addresses three problems. First, it prevents dependency conflicts — a developer trying to build an API endpoint before the database schema exists. Second, it creates natural verification points — the end of each wave is an opportunity to run tests and verify that the foundation is solid before building on top of it. Third, with Agent Teams enabling genuine parallel execution, the wave structure prevents file-level write conflicts: no two tasks in the same wave may modify the same file, because concurrent writes result in last-write-wins data loss. The PM must verify file independence when organizing waves.
+This concept addresses three problems. First, it prevents dependency conflicts — a developer trying to build an API endpoint before the database schema exists. Second, it creates natural verification points — the end of each wave is an opportunity to run tests and verify that the foundation is solid before building on top of it. Third, and most importantly under Agent Teams, the wave structure prevents file-level write conflicts: because Agent Teams enables true parallel execution — multiple teammates working simultaneously, not sequentially — no two tasks in the same wave may modify the same file. Concurrent writes result in last-write-wins data loss. The PM must verify file independence when organizing waves, and when a wave contains multiple independent tasks, the PM must dispatch all teammates simultaneously rather than sequentially. Sequential dispatch of parallel-safe work wastes the primary advantage of Agent Teams.
 
 The final wave of every milestone is always a verification wave: QA writes end-to-end tests and validates acceptance criteria; Security reviews the code merged during the milestone.
 
@@ -342,7 +350,7 @@ Each MCP server requires human approval before installation. The agent proposes 
 
 Skills are specialized instruction sets — markdown files containing best practices, patterns, and guidelines for specific technologies or tasks. Examples: "Next.js App Router patterns," "Playwright E2E best practices," "OpenAI streaming implementation."
 
-The agent can propose downloading skill files that would improve its output quality for the specific project. Each proposal includes the source, what it covers, and why it's relevant. Approved skills are stored in the repository's `skills/` directory so they are versioned, visible, and available to all sub-agents.
+The agent can propose downloading skill files that would improve its output quality for the specific project. Each proposal includes the source, what it covers, and why it's relevant. Approved skills are stored in the repository's `skills/` directory so they are versioned, visible, and available to all teammates and sub-agents.
 
 ### 8.3 Tooling Reassessment
 
@@ -406,7 +414,7 @@ The Ralph Wiggum technique — named after the stubbornly persistent Simpsons ch
 The framework deliberately does not use this pattern during MVP development. The reasons:
 
 1. Ralph is designed for autonomous execution with minimal human oversight. The framework prioritizes human governance at strategic points.
-2. Ralph's verification is typically automated (tests pass or fail). The framework's multi-agent review (Architect, Security, QA) provides deeper validation.
+2. Ralph's verification is typically automated (tests pass or fail). The framework's multi-agent review via Agent Teams teammates (Architect, Security, QA) provides deeper validation.
 3. Ralph works best for well-defined, low-risk tasks. MVP development involves ambiguous requirements and security-sensitive decisions.
 
 However, the framework documents Ralph as a post-v1.0 tool for specific use cases: bug fix sprints (give it 20 well-defined bugs, let it work overnight), refactoring passes (convert all class components to functional components), and test coverage drives (write missing tests for all files in a directory). These are tasks with clear success criteria, low risk, and no product judgment required.
@@ -415,8 +423,8 @@ However, the framework documents Ralph as a post-v1.0 tool for specific use case
 
 Post-MVP, the framework supports automated agent-driven maintenance pipelines:
 
-- **Nightly security scans** — spawn a Security agent to run dependency audits and create issues for findings.
-- **Weekly dependency updates** — spawn a Developer agent to update packages, run tests, and open a PR if tests pass.
+- **Nightly security scans** — spawn a Security teammate to run dependency audits and create issues for findings.
+- **Weekly dependency updates** — spawn a Developer teammate to update packages, run tests, and open a PR if tests pass.
 - **Documentation sync checks** — after merges to main, verify that docs match the code and create issues for drift.
 - **AI cost monitoring** — daily checks on API usage against budget thresholds.
 
@@ -459,26 +467,27 @@ The project instruction file (CLAUDE.md or equivalent) is the agent's operating 
 - Team structure summary.
 - Tech stack.
 - Architecture summary (link to full architecture doc).
-- Golden rules — non-negotiable behaviors. Number them. Make them imperative. Examples:
+- Golden rules — 24 non-negotiable behaviors. Number them. Make them imperative. Examples:
   - "Test everything."
   - "Never break the build."
   - "All AI calls go through the service layer."
   - "Every AI feature has a fallback."
   - "Act like a senior team — make routine decisions, escalate product decisions."
   - "Fresh context for every task."
+  - "Parallelize aggressively via Agent Teams." (When a wave has multiple independent tasks, dispatch all teammates simultaneously. Sequential execution of parallel-safe work is a process failure.)
   - "Truth conditions over task completion."
   - "Log learnings."
   - "Log decisions."
 
 ### 12.5 Define the Execution Model
 
-Specify the delegation tier: Agent Teams (preferred), sub-agents via Task tool (fallback), or manual session restarts (last resort). Then define how tasks move from "to do" to "done":
+Specify the delegation tier: Agent Teams (required default), sub-agents via Task tool (Tier 2 fallback), or manual session restarts (Tier 3, last resort). Then define how tasks move from "to do" to "done":
 
-1. PM assigns task to a worker (teammate, sub-agent, or fresh session) with role-specific instructions and fresh context.
-2. Worker creates a branch, implements, tests, commits.
-3. Worker reports results via files (commit, LEARNINGS.md update, structured summary).
-4. Review: lightweight by default (PM checks architecture + security in one pass), full pipeline for sensitive changes (separate Architect, Security, QA workers).
-5. If changes requested, a new worker gets the feedback and fixes.
+1. PM assigns task to a teammate (or sub-agent/fresh session in fallback mode) with role-specific instructions. Under Agent Teams, the teammate automatically loads CLAUDE.md and arrives with the project's conventions internalized.
+2. Teammate creates a branch, implements, tests, commits.
+3. Teammate reports results via files (commit, LEARNINGS.md update, structured summary) and via `SendMessage` to the PM.
+4. Review: lightweight by default (PM checks architecture + security in one pass), full pipeline for sensitive changes (separate Architect, Security, QA teammates).
+5. If changes requested, a new teammate gets the feedback and fixes.
 6. Review passes, PM merges, STATE.md updated.
 
 Define wave rules: independent tasks in the same wave, no two tasks in the same wave modify the same file, waves execute sequentially, final wave is verification.
@@ -531,23 +540,25 @@ The framework described in this paper is not about making AI agents follow a pro
 
 The key ideas are:
 
-1. **Roles create adversarial review.** A single agent reviewing its own work is theater. Explicit role-switching — or better, separate Agent Teams teammates — creates genuine evaluation from different perspectives.
+1. **Roles create adversarial review.** A single agent reviewing its own work is theater. Agent Teams teammates — each with independent context, persistent identity, and automatic CLAUDE.md loading — create genuine evaluation from structurally separate perspectives. Sub-agents offer a weaker form of the same principle when Agent Teams is unavailable.
 
-2. **Fresh context prevents rot.** The orchestrator stays light; workers get clean context. State lives in files, not in conversation history. Agent Teams, sub-agents via the Task tool, and manual session restarts are three tiers of the same principle.
+2. **Fresh context prevents rot.** The orchestrator stays light; workers get clean context. State lives in files, not in conversation history. Agent Teams is the primary mechanism (independent context windows with true parallel execution), with sub-agents via the Task tool and manual session restarts as fallback tiers.
 
-3. **Truth conditions prevent false completion.** Checking tasks off a list does not guarantee the product works. Testing observable outcomes does.
+3. **Parallelization is mandatory, not optional.** When a wave contains multiple independent tasks, the PM must dispatch all teammates simultaneously. Agent Teams exists to enable true concurrent execution — using it for sequential dispatch squanders its primary advantage. The wave structure and file-independence checks exist specifically to make aggressive parallelization safe.
 
-4. **Autonomy needs explicit boundaries.** Define what the team decides independently *and* what requires human input. Both lists are essential.
+4. **Truth conditions prevent false completion.** Checking tasks off a list does not guarantee the product works. Testing observable outcomes does.
 
-5. **Knowledge must persist.** Learnings files give the team institutional memory across sessions. Decision logs prevent relitigating settled questions. The team gets smarter over time instead of starting from zero.
+5. **Autonomy needs explicit boundaries.** Define what the team decides independently *and* what requires human input. Both lists are essential.
 
-6. **Security must be structurally privileged.** Without an explicit override hierarchy, the agent's bias toward shipping will override security concerns. Make security the default winner.
+6. **Knowledge must persist.** Learnings files give the team institutional memory across sessions. Decision logs prevent relitigating settled questions. The team gets smarter over time instead of starting from zero.
 
-7. **Recovery must be defined before it's needed.** When a fundamental assumption breaks, the team needs a protocol — halt, propose alternatives, escalate to the human — not ad hoc improvisation.
+7. **Security must be structurally privileged.** Without an explicit override hierarchy, the agent's bias toward shipping will override security concerns. Make security the default winner.
 
-8. **Every practice must earn its place.** If a process element doesn't prevent a specific, named failure mode, it is overhead. Remove it.
+8. **Recovery must be defined before it's needed.** When a fundamental assumption breaks, the team needs a protocol — halt, propose alternatives, escalate to the human — not ad hoc improvisation.
 
-These principles are tool-agnostic. While the reference playbook was designed for Claude Code and takes advantage of its native Agent Teams feature, the concepts apply to any AI coding agent that supports autonomous execution, task delegation, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
+9. **Every practice must earn its place.** If a process element doesn't prevent a specific, named failure mode, it is overhead. Remove it.
+
+These principles are rooted in Claude Code's Agent Teams as the primary execution model, but the underlying concepts are portable. Agent Teams is preferred because it provides the strongest structural enforcement of the framework's core principles — independent contexts, persistent role identity, parallel execution, and message-based coordination. Sub-agents via the Task tool offer a viable fallback that preserves fresh context isolation while sacrificing parallelism and peer coordination. The broader concepts — role separation, context management, truth conditions, autonomy boundaries — apply to any AI coding agent that supports autonomous execution, task delegation, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
 
 The goal is not to replace human judgment with AI process. It is to free human judgment for the decisions that actually require it — product vision, risk tolerance, user experience — while letting a well-structured AI team handle everything else.
 

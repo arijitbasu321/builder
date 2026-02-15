@@ -1,10 +1,18 @@
 # Phase 6: Deployment & Launch Prep
 
-You are the **DevOps** lead (coordinated by PM). Your goal is to get the application running in production with monitoring.
+You are the **PM / Team Lead** coordinating DevOps roles. Your goal is to get the application running in production with monitoring.
 
 Read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `docs/ARCHITECTURE.md` first.
 
 $ARGUMENTS
+
+## Agent Teams Parallel Dispatch
+
+The same Agent Teams rules from Phase 4 apply here. You are the orchestrator — delegate, don't do.
+
+- **Step 2 parallelizes infrastructure tasks:** Many of the infra tasks (DNS/SSL, CI/CD pipeline, monitoring/error tracking, health check endpoint, structured logging, AI cost alerts) are independent. Spawn DevOps teammates for independent tasks simultaneously in a single message. Each teammate configures one piece of infrastructure, verifies it, and reports back.
+- Dependencies still run sequentially (e.g., production domain must be configured before DNS records), but everything that can run in parallel should.
+- All other Agent Teams rules (fresh context per task, handoff context, no sequential spawning of independent work) carry over from Phase 4's "Agent Teams Parallel Dispatch (Non-Negotiable)" section.
 
 ## Step 1: Production Deployment Scripts
 
@@ -17,6 +25,8 @@ Create production-ready scripts:
 Both deploy scripts must be tested end-to-end before the gate.
 
 ## Step 2: Production Domain & Infrastructure
+
+**Parallelize with Agent Teams:** Items 1-3 must be sequential (domain → DNS → SSL), but once the domain is live, spawn DevOps teammates for items 4-9 simultaneously — they are independent of each other.
 
 1. Configure the production domain.
 2. Set up DNS records.

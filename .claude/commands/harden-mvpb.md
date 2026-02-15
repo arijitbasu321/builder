@@ -1,10 +1,18 @@
 # Phase 5: Quality & Security Hardening
 
-You are the **Security** lead (with QA co-lead, coordinated by PM). Your goal is a systematic review of the complete application for bugs, security vulnerabilities, UX issues, and missing edge cases.
+You are the **PM / Team Lead** coordinating Security and QA roles. Your goal is a systematic review of the complete application for bugs, security vulnerabilities, UX issues, and missing edge cases.
 
 Read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, `.planning/LEARNINGS.md`, and `docs/ARCHITECTURE.md` first.
 
 $ARGUMENTS
+
+## Agent Teams Parallel Dispatch
+
+The same Agent Teams rules from Phase 4 apply here. You are the orchestrator — delegate, don't do.
+
+- **Steps 1 & 2 run in parallel:** Spawn a QA teammate for the brainstorming session (Step 1) and a Security teammate for the deep audit (Step 2) simultaneously in a single message. Both can work independently — QA reviews for bugs, UX, and polish while Security runs the adversarial audit.
+- **Step 3 (fixes) parallelizes like Phase 4 waves:** When resolving Critical & High issues, spawn developer teammates for independent fixes simultaneously. Each teammate gets one issue, creates a branch, fixes, tests, and reports back. Do not work fixes sequentially when they touch different parts of the codebase.
+- All other Agent Teams rules (fresh context per task, handoff context, no sequential spawning of independent work) carry over from Phase 4's "Agent Teams Parallel Dispatch (Non-Negotiable)" section.
 
 ## Step 1: Brainstorming Session
 
@@ -49,7 +57,7 @@ Log every finding as a GitHub issue with label `security` and severity.
 
 ## Step 3: Resolve Critical & High Issues
 
-Work through security and critical bug issues using the same task loop from Phase 4 (fresh context per task, branch per fix, test, review, merge).
+Work through security and critical bug issues using the same task loop from Phase 4 (fresh context per task, branch per fix, test, review, merge). **Spawn developer teammates for independent fixes simultaneously** — group fixes that don't conflict into waves and dispatch them in parallel, exactly as Phase 4 wave execution works.
 
 ## Gate — 🧑 Human
 

@@ -1,7 +1,7 @@
 # App Builder Playbook
 
 > A structured playbook for building production-ready applications using a **team of AI roles** orchestrated by Claude Code.
-> The human communicates **only with the PM**. The PM orchestrates specialized roles (Architect, Developer, QA, Security, DevOps) via Agent Teams, sub-agents, or manual sessions.
+> The human communicates **only with the PM**. The PM orchestrates specialized roles (Architect, Developer, QA, Security, DevOps) via Agent Teams (teammates), sub-agents, or manual sessions.
 > The instance runs with `--dangerously-skip-permissions` — the team operates **autonomously** and should behave like a **senior product team**, not an outsourced junior crew that needs hand-holding.
 
 ---
@@ -71,7 +71,7 @@ Each phase has a **Gate Approved By** field that determines who signs off before
 
 This playbook is executed by a **team of specialized roles** running within Claude Code. The human communicates **only with the PM**. The PM delegates work, coordinates the team, and escalates to the human when needed.
 
-> **Terminology**: This playbook uses three distinct concepts. **Roles** are the six team hats (PM, Architect, Developer, QA, Security, DevOps) — they define *who* is responsible for what. **Sessions** are Claude Code context windows — fresh sessions prevent context rot. **Teammates** are Agent Teams members when using Claude Code's native Agent Teams feature. Roles can be executed via any session model (teammates, sub-agents, or manual sessions). See *Translating the Delegation Model to Claude Code* for how these map to real commands.
+> **Terminology**: This playbook uses three distinct concepts. **Roles** are the six team hats (PM, Architect, Developer, QA, Security, DevOps) — they define *who* is responsible for what. **Sessions** are Claude Code context windows — fresh sessions prevent context rot. **Teammates** are Agent Teams members when using Claude Code's native Agent Teams feature. Roles can be executed via any session model (teammates, sub-agents as fallback, or manual sessions). See *Translating the Delegation Model to Claude Code* for how these map to real commands.
 
 ### Roles
 
@@ -86,7 +86,7 @@ This playbook is executed by a **team of specialized roles** running within Clau
 
 ### Communication Protocol
 
-Regardless of execution mode (Agent Teams, sub-agents, or manual sessions), the team coordinates through the PM:
+Regardless of execution mode (Agent Teams, sub-agents as fallback, or manual sessions), the team coordinates through the PM:
 
 1. **PM delegates work** — The PM assigns tasks to specific roles. Each task includes context, acceptance criteria, and the target branch.
 2. **Workers report back to PM** — When work is complete, the worker reports results to the PM, who decides the next step.
@@ -182,7 +182,7 @@ Each phase has a **lead agent** who drives the work, supported by others:
 
 ### Context Management (Preventing Context Rot)
 
-The PM adopts each role's mindset when performing that role's work (or delegates to dedicated teammates/sub-agents — see *Translating the Delegation Model to Claude Code*). The structure exists to enforce separation of concerns and adversarial review — when reviewing code as Security, be skeptical and thorough, not a rubber-stamp of your own Developer work. The biggest threat to this model is **context rot**.
+The PM adopts each role's mindset when performing that role's work (or delegates to dedicated teammates — see *Translating the Delegation Model to Claude Code*). The structure exists to enforce separation of concerns and adversarial review — when reviewing code as Security, be skeptical and thorough, not a rubber-stamp of your own Developer work. The biggest threat to this model is **context rot**.
 
 > **Context rot** is the progressive degradation of AI quality as the context window fills up. By task 50, the agent forgets decisions from task 1, generates inconsistent code, and loses track of the architecture. This is the #1 reliability risk in long-running agent sessions.
 
@@ -197,9 +197,9 @@ This playbook combats context rot using a **fresh delegation model** inspired by
 │  - Holds: project state, current milestone, task queue      │
 │  - Does NOT hold: implementation details, full code files   │
 │                                                             │
-│  For each task, PM spawns a fresh sub-agent:                │
+│  For each task, PM spawns a fresh teammate:                 │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │  Sub-Agent (Developer/QA/Security/etc.)                │ │
+│  │  Teammate (Developer/QA/Security/etc.)                 │ │
 │  │  - Gets a clean, full context window                   │ │
 │  │  - Receives: task instructions, relevant files,        │ │
 │  │    CLAUDE.md, architecture excerpts                    │ │
@@ -212,12 +212,12 @@ This playbook combats context rot using a **fresh delegation model** inspired by
 ```
 
 **Rules for context management:**
-1. **PM never writes code directly.** It delegates to sub-agents who have fresh context for each task.
-2. **Each sub-agent receives only what it needs** — the task description, relevant source files, CLAUDE.md, and the relevant section of ARCHITECTURE.md. Not the entire project history.
-3. **Sub-agents report results back to PM** in a structured format: what was done, what files changed, what tests were added/modified, any concerns.
+1. **PM never writes code directly.** It delegates to teammates who have fresh context for each task.
+2. **Each teammate receives only what it needs** — the task description, relevant source files, CLAUDE.md, and the relevant section of ARCHITECTURE.md. Not the entire project history.
+3. **Teammates report results back to PM** in a structured format: what was done, what files changed, what tests were added/modified, any concerns.
 4. **PM maintains a lightweight state file** (`.planning/STATE.md`) that tracks: current milestone, completed tasks, in-progress tasks, blocked tasks, and key decisions. This is the orchestrator's memory — it persists across sessions. **Structure rule**: STATE.md always starts with a "Current Status" section (≤20 lines): current milestone, current wave, blocked items, next action. Completed milestones move to an "Archive" section at the bottom. The PM reads this first every session — it must be scannable in seconds.
 5. **If the PM's context gets heavy** (above ~60%), it should start a new session, re-read CLAUDE.md, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md`, and continue. No work is lost because state is in files, not in context.
-6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied. This file is included in every sub-agent's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them.
+6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied. This file is included in every teammate's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them.
 
 ```markdown
 ## Example: .planning/LEARNINGS.md entries
@@ -236,7 +236,7 @@ This playbook combats context rot using a **fresh delegation model** inspired by
 - `[AI]` `[INFRA]` The health check endpoint must NOT call the AI API — it was causing $3/day in unnecessary token spend. Use a cached status flag instead.
 ```
 
-> **Convention**: Tag every entry with a category (`[ORM]`, `[AI]`, `[AUTH]`, `[TESTING]`, `[UI]`, `[INFRA]`, etc.) so sub-agents can search for relevant learnings instead of reading the whole file.
+> **Convention**: Tag every entry with a category (`[ORM]`, `[AI]`, `[AUTH]`, `[TESTING]`, `[UI]`, `[INFRA]`, etc.) so teammates can search for relevant learnings instead of reading the whole file.
 
 7. **Agents maintain a shared decision log** (`.planning/DECISIONS.md`). When the PM resolves a conflict, the human makes a key decision, or the team agrees to descope something, it gets logged here. This prevents relitigating settled questions across context resets.
 
@@ -273,7 +273,7 @@ Milestone v0.2 — Core Feature + AI
 **Wave rules:**
 - Within a wave, tasks are **independent** — they can run in parallel (or at minimum, in any order without conflicts).
 - **Parallel dispatch via Agent Teams is mandatory, not optional.** When a wave has multiple independent tasks, the PM MUST use Claude Code's native Agent Teams (`TeamCreate` + `Task` with `team_name`) to spawn all teammates simultaneously in a single message. Executing independent tasks sequentially when they could run in parallel is a process failure. The whole point of wave planning is to enable parallelism — use it.
-- **No two tasks in the same wave may modify the same file.** When using Agent Teams or parallel sub-agents, concurrent writes to the same file cause last-write-wins conflicts. The PM must verify file independence when organizing waves. If two tasks both need to modify a shared file, they go in sequential waves.
+- **No two tasks in the same wave may modify the same file.** When using Agent Teams or parallel teammates, concurrent writes to the same file cause last-write-wins conflicts. The PM must verify file independence when organizing waves. If two tasks both need to modify a shared file, they go in sequential waves.
 - A wave only starts after the previous wave is **fully complete and verified**.
 - The PM is responsible for analyzing task dependencies and organizing waves.
 - Wave organization is documented in `.planning/STATE.md` so it survives session resets.
@@ -344,7 +344,7 @@ If neither Agent Teams nor the Task tool is available, fall back to manual orche
 **Regardless of tier, these invariants hold:**
 - **All state lives in files, never in context.** `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md` are the persistence layer. If every session crashed right now, you could resume from the files alone. If yes, you're doing it right.
 - **PM stays light.** The PM session (or team lead) should primarily read/write state files and delegate. If the PM starts holding implementation details (large code blocks, debug traces), it's time to delegate or restart.
-- **Workers get fresh context.** Whether a worker is a teammate, a sub-agent, or a new manual session, it receives only what it needs for the current task — not the entire project history.
+- **Workers get fresh context.** Whether a worker is a teammate, a sub-agent (fallback), or a new manual session, it receives only what it needs for the current task — not the entire project history.
 - **Workers report back via files.** Commits, LEARNINGS.md updates, and structured summaries. The PM reads results from the filesystem and git log.
 
 ### Recovery & Pivot Protocol
@@ -695,7 +695,7 @@ See [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) for full product specification.
 [1-2 sentence summary here]
 
 ## Team Structure
-You are a team of specialized roles orchestrated via Claude Code (Agent Teams, sub-agents, or manual sessions).
+You are a team of specialized roles orchestrated via Claude Code (Agent Teams, sub-agents as fallback, or manual sessions).
 See the **Agent Team Structure** section in APP_BUILDER_PLAYBOOK.md for full details.
 
 - **🎯 PM**: Orchestrator / team lead. Only role that talks to the human. Delegates, reviews, resolves minor conflicts.
@@ -732,7 +732,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full architecture.
 16. **No service without a key.** Never install SDKs, write integration code, or assume a third-party service is available until the human has provided the API key. Follow the Service Keys Protocol.
 17. **Leverage MCP servers and skills.** Use approved MCP servers and downloaded skills to produce the best possible output. Revisit tooling needs at each milestone checkpoint — if a new MCP server or skill would help, propose it.
 18. **Respect the team hierarchy.** Security overrides Developer. PM resolves minor conflicts. Major conflicts go to the human. No agent bypasses the review process.
-19. **Fresh context for every task.** PM delegates tasks to workers (teammates, sub-agents, or fresh sessions) with clean context. Never accumulate implementation details in the orchestrator. If PM context exceeds 60%, start a new session and re-read CLAUDE.md + `.planning/STATE.md` + `.planning/DECISIONS.md` + `.planning/LEARNINGS.md`.
+19. **Fresh context for every task.** PM delegates tasks to workers (teammates, or sub-agents/fresh sessions as fallback) with clean context. Never accumulate implementation details in the orchestrator. If PM context exceeds 60%, start a new session and re-read CLAUDE.md + `.planning/STATE.md` + `.planning/DECISIONS.md` + `.planning/LEARNINGS.md`.
 20. **Parallelize aggressively via Agent Teams.** When a wave has multiple independent tasks, the PM MUST use Claude Code's native Agent Teams (`TeamCreate` + `Task` with `team_name`) to spawn all teammates simultaneously in a single message. Never execute independent tasks sequentially. The PM's job during a wave is to launch all teammates at once, then coordinate via `SendMessage` and monitor for completion. Sequential dispatch of parallel-safe work is a process failure.
 21. **Atomic tasks only.** Every task should touch ≤ 3 logical units (a unit = cohesive files for one concern, e.g., route + handler + migration), fit in ≤ 50% of context, and be testable in isolation. If it's too big, split it.
 22. **Truth conditions over task completion.** A milestone is done when its truth conditions pass, not when its tasks are checked off. Always verify observable outcomes.
@@ -833,7 +833,7 @@ Agent logs **every** requirement as a GitHub issue with:
 
 **Atomic task sizing rules (critical for context management):**
 
-Each issue must be small enough for a **fresh sub-agent to complete in a single session** without context degradation. Apply these constraints:
+Each issue must be small enough for a **fresh teammate to complete in a single session** without context degradation. Apply these constraints:
 
 | Rule | Guideline |
 |------|-----------|
@@ -971,7 +971,7 @@ For **each task**, the PM spawns a teammate via Agent Teams with a clean context
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-> **Review calibration**: Lightweight review (PM checks architecture + security in one pass) is the default for most tasks. The full 3-reviewer pipeline (separate Architect, Security, QA sub-agents) is reserved for changes touching: auth/sessions, AI integration, data models/migrations, API contracts, or any code flagged by Security. This keeps velocity high without compromising on the things that actually matter.
+> **Review calibration**: Lightweight review (PM checks architecture + security in one pass) is the default for most tasks. The full 3-reviewer pipeline (separate Architect, Security, QA teammates) is reserved for changes touching: auth/sessions, AI integration, data models/migrations, API contracts, or any code flagged by Security. This keeps velocity high without compromising on the things that actually matter.
 
 > **Context management rule**: If the PM's own context exceeds ~60% utilization, it should start a new session, re-read `CLAUDE.md`, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md`, and continue orchestrating. No work is lost because all state is in files.
 
