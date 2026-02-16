@@ -8,15 +8,19 @@ $ARGUMENTS
 
 ## Pre-Existing Input
 
-If `$ARGUMENTS` contains a filename, read that file from the project's top-level directory. It contains pre-researched epics and/or user stories provided by the product owner.
+**Check for a pre-existing epics/user stories file.** Use ALL three methods — the first match wins:
+
+1. **`$ARGUMENTS`** — If it contains a filename, use that file.
+2. **Ask the human** — Use `AskUserQuestion`: "Do you have a pre-existing epics or user stories file?" (header: "Input") — Options: "No, generate from scratch (Recommended)", "Yes, I have a file". If yes, ask for the filename (header: "Filename").
+3. **If no file is provided by either method**, generate all sections from scratch using the project context.
+
+When a pre-existing input file is provided, read it from the project's top-level directory. It contains pre-researched epics and/or user stories provided by the product owner.
 
 When a pre-existing input file is provided:
 - **Adopt the provided epics and user stories as-is.** Do not regenerate, rewrite, or reinterpret them. They are the foundation.
 - Build all other spec sections around them (product overview, workflows, data model, AI integration, etc.).
 - During the Critical Review step (Step 2), flag gaps or missing coverage relative to the provided stories — but do NOT modify the originals without explicit human approval.
 - Ensure every provided user story is represented in the final requirements traceability.
-
-If no filename is provided, generate all sections from scratch using the project context.
 
 ## Step 1: Draft the Spec
 
