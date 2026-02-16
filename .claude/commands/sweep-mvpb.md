@@ -17,7 +17,7 @@ This phase gives the Architect and Developers one complete pass through the fini
 The same Agent Teams rules from Phase 4 apply here. You are the orchestrator — delegate, don't do.
 
 - **Step 1 runs 3 teammates in parallel**: Architect + 2 Developers, each covering a different review domain. All spawned simultaneously in a single message.
-- **Step 2 (fixes) parallelizes like Phase 4 waves**: Independent fixes spawned simultaneously, dependent fixes sequenced.
+- **Step 2 (fixes) parallelizes like Phase 4 waves**: Independent fixes spawned simultaneously (max 5 per wave), dependent fixes sequenced.
 
 ## Step 1: Builders' Review (3 teammates, spawned simultaneously)
 

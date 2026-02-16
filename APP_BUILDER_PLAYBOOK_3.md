@@ -1040,6 +1040,8 @@ PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Te
 └── PM runs truth condition check → Milestone checkpoint
 ```
 
+**⚠️ Teammate cap: maximum 5 teammates per wave.** If a wave has more than 5 tasks, split it into sub-waves of ≤5 and run them sequentially. This prevents token burn, rate-limit hits, and context degradation. The cap applies to ALL teammate types combined (developers + QA + security + devops).
+
 ### Teammate Task Loop (Each Task)
 
 For **each task**, the PM spawns a teammate via Agent Teams with a clean context:
