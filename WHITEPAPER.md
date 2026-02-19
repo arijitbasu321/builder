@@ -6,9 +6,9 @@
 
 ## Abstract
 
-The emergence of AI coding agents — tools like Claude Code, Codex, and similar systems that can autonomously write, test, and deploy software — has created a gap between what these tools *can* do and what they *reliably* do. Left unstructured, AI agents produce inconsistent results: they drift from specifications, accumulate context that degrades their output quality, skip security reviews in favor of shipping speed, and make product decisions that should belong to humans.
+The emergence of AI coding agents — tools like Claude Code, Codex, and similar systems that can autonomously write, test, and deploy software — has created a gap between what these tools *can* do and what they *reliably* do. Left unstructured, AI agents produce inconsistent results: they drift from specifications, accumulate context that degrades their output quality, skip security reviews in favor of shipping speed, make product decisions that should belong to humans, and state unverified claims as fact.
 
-This paper presents a framework for organizing AI coding agents into a structured, multi-role team that operates autonomously within defined boundaries. The framework addresses six core challenges: maintaining output quality across long projects (context management), ensuring security and architectural consistency (adversarial review), keeping humans in control of product decisions without micromanaging implementation (graduated autonomy), building AI-powered products using AI agents (recursive AI integration), accumulating institutional knowledge across sessions (persistent learning), and recovering cleanly when fundamental assumptions break (pivot protocols).
+This paper presents a framework for organizing AI coding agents into a structured, multi-role team that operates autonomously within defined boundaries. The framework addresses seven core challenges: maintaining output quality across long projects (context management), ensuring security and architectural consistency (adversarial review), keeping humans in control of product decisions without micromanaging implementation (graduated autonomy), building AI-powered products using AI agents (recursive AI integration), accumulating institutional knowledge across sessions (persistent learning), recovering cleanly when fundamental assumptions break (pivot protocols), and preventing agents from stating unverified claims as fact (anti-hallucination discipline).
 
 The framework was developed through iterative design and draws on concepts from the GSD (Get Shit Done) framework, the Ralph Wiggum autonomous iteration pattern, Claude Code's native Agent Teams feature, and established software engineering practices adapted for the unique constraints of AI agent orchestration.
 
@@ -32,6 +32,8 @@ When developers use AI coding agents without structure, they encounter predictab
 
 **Knowledge Loss.** Each new session starts from zero. The agent rediscovers the same gotchas, reimplements the same patterns, and makes the same mistakes. There is no institutional memory unless it is explicitly engineered.
 
+**Hallucination.** AI agents state things as fact that they have not verified. They invent function names that do not exist, describe file contents they have not read, claim capabilities they do not have, and present guesses as certainty. In an unstructured workflow, there is no check on this behavior — the agent writes code using an API method it hallucinated, the error surfaces hours later, and debugging begins from a false premise. Hallucination is particularly dangerous because it is confident: the agent does not signal uncertainty, so the human has no reason to double-check. Unlike the other failure modes, hallucination is not caused by external pressure (context limits, missing specs, missing knowledge) — it is an intrinsic property of how language models generate text.
+
 ### 1.2 The Overcorrection: Enterprise Theater
 
 Some frameworks attempt to solve these problems by importing heavyweight methodologies — sprint planning, retrospectives, story points, acceptance criteria reviews, architecture decision records, and multi-stage approval workflows. While well-intentioned, these approaches introduce a different failure mode: they make the agent spend more time performing process than building product.
@@ -40,7 +42,7 @@ A solo developer using an AI agent does not need a Scrum board. They need struct
 
 ### 1.3 The Design Principle
 
-Every element of the framework described in this paper exists because it solves a specific, named problem. If a practice cannot be traced back to a concrete failure mode it prevents, it does not belong in the framework.
+Every element of the framework described in this paper exists because it solves a specific, named problem. If a practice cannot be traced back to one of the six failure modes above, it does not belong in the framework — with one exception: some practices address **operational concerns** introduced by the framework's own multi-agent architecture rather than a failure mode of unstructured AI coding.
 
 | Practice | Failure Mode It Prevents |
 |----------|--------------------------|
@@ -49,15 +51,16 @@ Every element of the framework described in this paper exists because it solves 
 | Multi-role team with Security override authority | Security blindness |
 | Explicit autonomy boundaries | Decision creep |
 | Persistent learnings file | Knowledge loss |
-| Persistent decision log | Decision relitigating across sessions |
-| Atomic task sizing | Context rot (per-task) |
-| Truth conditions | Verification theater (tasks "done" but product broken) |
-| Human gates at strategic points | Loss of product control |
-| Wave-based execution with file-independence checks | Dependency conflicts, parallel write conflicts |
-| Recovery & pivot protocol | Grinding against broken assumptions |
-| Trust-tiered skills with security vetting | Supply chain injection via malicious skill files |
-| Automated accessibility scanning in verification waves | Accessibility promises in spec but never verified |
-| Per-tier AI accuracy targets with human override | Endless optimization or silent quality gaps in AI features |
+| Persistent decision log | Knowledge loss |
+| Atomic task sizing | Context rot |
+| Truth conditions | Specification drift |
+| Human gates at strategic points | Decision creep |
+| Wave-based execution with file-independence checks | Operational concern (parallel execution coordination) |
+| Recovery & pivot protocol | Decision creep |
+| Trust-tiered skills with security vetting | Security blindness |
+| Automated accessibility scanning in verification waves | Specification drift |
+| Per-tier AI accuracy targets with human override | Decision creep |
+| Anti-hallucination rules (verify before asserting, say "I don't know") | Hallucination |
 
 ---
 
@@ -155,7 +158,13 @@ These four files form the team's **institutional memory**. They replace the cont
 
 ### 3.4 The PM Context Budget
 
-The framework specifies that if the PM's context utilization exceeds approximately 60%, it should start a new session. The PM reads CLAUDE.md, STATE.md, LEARNINGS.md, and DECISIONS.md, and continues orchestrating from where it left off. This is a proactive measure — it prevents degradation rather than recovering from it. But the 60% threshold is the emergency backstop, not the primary strategy. The primary strategy is proactive context management through structured inputs, natural reset points, and externalized memory.
+The PM cannot programmatically measure its own context utilization. There is no API, tool, or signal available to a running Claude Code agent that reports how much of its context window has been consumed. When context fills up, Claude Code silently auto-compacts — summarizing earlier conversation history in a lossy process that is itself a form of context rot. This means a percentage-based threshold like "reset at 60%" is unenforceable by the PM alone.
+
+The framework addresses this with a human-in-the-loop approach: **at every checkpoint — milestone completion, phase gate, or verification wave boundary — the PM must remind the human to check context utilization** (via the Claude Code UI status bar or `/cost` command) **and restart the session if it exceeds 60%.** The PM cannot reset itself; the human must initiate the restart. After restart, the PM re-reads CLAUDE.md, STATE.md, LEARNINGS.md, and DECISIONS.md to restore its working state. No work is lost because the source of truth is in files, not in context.
+
+The 60% threshold is chosen because practitioner experience suggests output quality degrades noticeably after 40-50% utilization and becomes unreliable above 70%. The checkpoint-based reminder ensures the human has a regular opportunity to intervene before degradation begins, without requiring the PM to self-diagnose a condition it cannot observe.
+
+Beyond checkpoint reminders, the primary strategy is proactive context management through structured inputs, natural reset points, and externalized memory.
 
 **Structured report-backs as input control.** The largest source of PM context bloat is verbose teammate reports. A developer teammate reporting back might include full code diffs, test output, implementation rationale, and debugging history — none of which the PM needs for orchestration. The framework mandates a compressed report format: status (pass/fail/blocked), a one-to-two sentence summary, list of files changed, test results (counts, not output), tagged learnings for the shared file, and blockers. This controls the single largest variable in PM context growth. The PM processes the structured report, updates state files, and moves to the next task. Implementation details stay in the teammate's context (which is discarded) and in the git history (which is permanent).
 
@@ -174,7 +183,7 @@ These natural boundaries mean the PM resets proactively at points where the cost
 
 **The no-code rule.** The PM's context should contain task descriptions, file path references, pass/fail verdicts, and orchestration decisions — never source code, test output, or implementation details. When the PM needs to understand code (for review decisions, conflict resolution, or architecture verification), it delegates to a reviewer teammate who reports back with a verdict and summary. This is perhaps the most counterintuitive rule: the PM orchestrates the building of software it never reads directly. But the PM's value is in coordination, sequencing, and decision-making, not in code comprehension — and protecting the PM's context for those high-value activities is worth the delegation overhead.
 
-In practice, these strategies mean the PM operates in a steady state of 30-40% context utilization, with resets at natural boundaries keeping it there. The 60% threshold becomes a safety net that rarely triggers rather than the primary management mechanism.
+In practice, these strategies mean the PM operates in a steady state of 30-40% context utilization. The checkpoint reminders ensure the human regularly evaluates whether a reset is needed, turning context management into a shared responsibility rather than an unenforceable self-monitoring rule.
 
 ---
 
@@ -571,7 +580,7 @@ The project instruction file (CLAUDE.md or equivalent) is the agent's operating 
 - Team structure summary.
 - Tech stack.
 - Architecture summary (link to full architecture doc).
-- Golden rules — 24 non-negotiable behaviors. Number them. Make them imperative. Examples:
+- Golden rules — non-negotiable behaviors. Number them. Make them imperative. Examples:
   - "Test everything."
   - "Never break the build."
   - "All AI calls go through the service layer."
@@ -582,6 +591,7 @@ The project instruction file (CLAUDE.md or equivalent) is the agent's operating 
   - "Truth conditions over task completion."
   - "Log learnings."
   - "Log decisions."
+- Anti-hallucination rules — a dedicated section that prevents agents from stating unverified claims as fact. Key principles: never assume, verify before asserting; say "I don't know" when uncertain; never claim capabilities the agent does not have; verify libraries, APIs, and configurations against actual source before using them; read files before describing their contents; test before claiming something works; distinguish verified facts from inferences in all reports.
 
 ### 12.5 Define the Execution Model
 
@@ -666,6 +676,8 @@ The key ideas are:
 10. **Tooling is a supply chain.** Skills and MCP servers are force multipliers, but they are also instruction injection vectors. Trust-tiered sources, mandatory security vetting, and independent two-pass review for community-sourced skills protect the team from the most common supply chain attack in the AI agent ecosystem.
 
 11. **AI quality needs explicit budgets.** Without per-tier accuracy targets, teams either over-optimize non-critical features or ship critical features below acceptable quality. Defining "good enough" during architecture — not during QA — prevents both failure modes and gives the human informed override authority.
+
+12. **Agents must verify, not assume.** AI agents hallucinate — they state unverified claims as fact, invent APIs that do not exist, describe files they have not read, and claim capabilities they do not have. Unlike the other failure modes, hallucination is intrinsic to how language models generate text, not caused by external pressure. The framework addresses this with explicit anti-hallucination rules in the instruction file: never assume, verify against source before asserting, say "I don't know" when uncertain, test before claiming something works, and distinguish verified facts from inferences in all reports. No amount of role separation or context management eliminates hallucination — it requires direct, continuous discipline.
 
 These principles are rooted in Claude Code's Agent Teams as the primary execution model, but the underlying concepts are portable. Agent Teams is preferred because it provides the strongest structural enforcement of the framework's core principles — independent contexts, persistent role identity, parallel execution, and message-based coordination. Sub-agents via the Task tool offer a viable fallback that preserves fresh context isolation while sacrificing parallelism and peer coordination. The broader concepts — role separation, context management, truth conditions, autonomy boundaries — apply to any AI coding agent that supports autonomous execution, task delegation, and file-based state management. The specific implementation details (CLAUDE.md vs. AGENTS.md, GitHub Issues vs. Linear, Next.js vs. other stacks) are interchangeable. The architecture of the process is what matters.
 

@@ -107,6 +107,8 @@ You have 6 human gates where the PM will stop and wait for your sign-off:
 
 During Phase 4 (Development), each milestone also requires your sign-off before the next one begins. Between gates: provide API keys when requested, make decisions when escalated, otherwise stay out of the way.
 
+**Context monitoring**: The PM cannot measure its own context utilization. At every checkpoint (milestone, phase gate, verification wave), it will remind you to check context usage via the Claude Code UI status bar or `/cost`. If utilization exceeds 60%, restart the session and run `/resume-mvpb` — no work is lost because all state is in files.
+
 ## How It Works
 
 The playbook defines 6 roles (PM, Architect, Developer, QA, Security, DevOps) that operate as an autonomous team:
