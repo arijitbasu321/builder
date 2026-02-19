@@ -16,8 +16,20 @@ This phase gives the Architect and Developers one complete pass through the fini
 
 The same Agent Teams rules from Phase 4 apply here. You are the orchestrator — delegate, don't do.
 
-- **Step 1 runs 3 teammates in parallel**: Architect + 2 Developers, each covering a different review domain. All spawned simultaneously in a single message.
-- **Step 2 (fixes) parallelizes like Phase 4 waves**: Independent fixes spawned simultaneously (max 5 per wave), dependent fixes sequenced.
+- **Step 1 runs 3 teammates in parallel**: Architect + 2 Developers, each covering a different review domain. All spawned simultaneously in a single message. Each teammate gets its own worktree:
+  ```bash
+  WORKTREE_ROOT="../$(basename $(pwd))-worktrees"
+  mkdir -p "$WORKTREE_ROOT"
+  git worktree add "$WORKTREE_ROOT/review-architect" -b review/architect develop
+  git worktree add "$WORKTREE_ROOT/review-integration" -b review/integration develop
+  git worktree add "$WORKTREE_ROOT/review-functional" -b review/functional develop
+  ```
+  Include the worktree path in each teammate's handoff. Teammates `cd` to their worktree first and must NOT commit `.planning/` file changes.
+- **Step 2 (fixes) parallelizes like Phase 4 waves**: Independent fixes spawned simultaneously (max 5 per wave), dependent fixes sequenced. Each fix teammate gets a worktree:
+  ```bash
+  git worktree add "$WORKTREE_ROOT/fix-issue-N" -b fix/N develop
+  ```
+- **Worktree cleanup:** After merging each branch, clean up: `git worktree remove "$WORKTREE_ROOT/<branch>"`, `git branch -d <branch>`, `git worktree prune`. At phase end, remove any remaining worktrees and prune.
 - **Shut down teammates between steps and waves** via `shutdown_request`. At phase end, shut down all remaining teammates and call `TeamDelete`.
 
 ## Step 1: Builders' Review (3 teammates, spawned simultaneously)

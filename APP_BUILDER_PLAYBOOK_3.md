@@ -118,6 +118,14 @@ Each agent works in branches to keep work isolated and reviewable:
 - Security-labeled issues require **Security agent sign-off** before merge.
 - `develop` merges into `main` only at milestone completions with human sign-off.
 
+### Worktree Isolation
+
+Each teammate gets an isolated filesystem checkout via **git worktrees**, eliminating last-write-wins conflicts when multiple teammates work in parallel.
+
+- **Convention**: Worktrees live in `../<project-name>-worktrees/<sanitized-branch>/` (sibling directory to the main repo). Branch names are sanitized for paths: `feat/123` → `feat-123`.
+- **PM creates and removes worktrees.** Teammates just `cd` to their assigned worktree path and work there. They do not create or remove worktrees themselves.
+- **Teammates must NOT commit `.planning/` file changes.** The `.planning/` directory (STATE.md, LEARNINGS.md, DECISIONS.md) is managed exclusively by the PM in the main working directory. Teammates report learnings and decisions via `SendMessage`; the PM aggregates them into the canonical files after each wave.
+
 ### Conflict Resolution
 
 Conflicts between agents are inevitable. Here's the resolution hierarchy:
@@ -237,7 +245,7 @@ CONCERN: bcrypt rounds set to 10 — may need tuning for production
 The PM should reject verbose reports and ask the teammate to reformat. No code snippets, no explanations of approach, no stack traces in report-backs. If the PM needs details, it asks a targeted follow-up or delegates a review.
 4. **PM maintains a lightweight state file** (`.planning/STATE.md`) that tracks: current milestone, completed tasks, in-progress tasks, blocked tasks, and key decisions. This is the orchestrator's memory — it persists across sessions. **Structure rule**: STATE.md always starts with a "Current Status" section (≤20 lines): current milestone, current wave, blocked items, next action. Completed milestones move to an "Archive" section at the bottom. The PM reads this first every session — it must be scannable in seconds. **Per-wave updates**: After each wave completes (not just each milestone), the PM updates STATE.md with a brief wave summary: which tasks completed, which files were touched, and whether the wave's acceptance criteria passed. This ensures STATE.md reflects progress at wave granularity, so a mid-milestone reset loses nothing.
 5. **The PM cannot measure its own context utilization.** There is no programmatic signal available to a running agent. At every checkpoint — milestone completion, phase gate, or verification wave boundary — the PM must remind the human to check context utilization (via the Claude Code UI status bar or `/cost`) and restart the session if it exceeds ~60%. After restart, the PM re-reads CLAUDE.md, `.planning/STATE.md`, `.planning/DECISIONS.md`, and `.planning/LEARNINGS.md` and continues. No work is lost because state is in files, not in context. **Natural reset points** (prefer resetting at these boundaries rather than mid-wave): (a) wave boundaries — after all teammates in a wave have reported back and STATE.md is updated; (b) between milestones — after verification passes and before planning the next milestone; (c) before verification waves — the verification wave benefits most from a fresh PM context, since it requires clear-headed assessment of truth conditions.
-6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent appends any useful discoveries: patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied. This file is included in every teammate's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them. **Archiving rule**: LEARNINGS.md is included in every teammate's context, so its size directly impacts context budgets. At each milestone checkpoint, the PM archives entries from milestones older than the current and previous one into `.planning/LEARNINGS_ARCHIVE.md`. The active file keeps only entries from the current milestone and the one before it. If an archived entry is still actively relevant (e.g., a persistent ORM gotcha), promote it to a "Pinned" section at the top of LEARNINGS.md instead of re-adding it. Teammates who need historical context can search the archive, but it is never included in routine handoffs.
+6. **Agents maintain a shared learnings file** (`.planning/LEARNINGS.md`). After each task, the executing agent reports any useful discoveries — patterns found in the codebase, gotchas encountered, conventions established, or workarounds applied — via `SendMessage` to the PM. **Teammates do NOT commit directly to LEARNINGS.md** (they work in isolated worktrees and must not modify `.planning/` files). The PM aggregates teammate-reported learnings into LEARNINGS.md after each wave. This file is included in every teammate's context, so the team gets smarter over time — future iterations benefit from past mistakes without needing to rediscover them. **Archiving rule**: LEARNINGS.md is included in every teammate's context, so its size directly impacts context budgets. At each milestone checkpoint, the PM archives entries from milestones older than the current and previous one into `.planning/LEARNINGS_ARCHIVE.md`. The active file keeps only entries from the current milestone and the one before it. If an archived entry is still actively relevant (e.g., a persistent ORM gotcha), promote it to a "Pinned" section at the top of LEARNINGS.md instead of re-adding it. Teammates who need historical context can search the archive, but it is never included in routine handoffs.
 
 ```markdown
 ## Example: .planning/LEARNINGS.md entries
@@ -301,7 +309,10 @@ Milestone v0.2 — Core Feature + AI
 **Wave rules:**
 - Within a wave, tasks are **independent** — they can run in parallel (or at minimum, in any order without conflicts).
 - **Parallel dispatch via Agent Teams is mandatory, not optional.** When a wave has multiple independent tasks, the PM MUST use Claude Code's native Agent Teams (`TeamCreate` + `Task` with `team_name`) to spawn all teammates simultaneously in a single message. Executing independent tasks sequentially when they could run in parallel is a process failure. The whole point of wave planning is to enable parallelism — use it.
-- **No two tasks in the same wave may modify the same file.** When using Agent Teams or parallel teammates, concurrent writes to the same file cause last-write-wins conflicts. The PM must verify file independence when organizing waves. If two tasks both need to modify a shared file, they go in sequential waves.
+- **Same-file overlap is risk-assessed, not forbidden.** Worktree isolation prevents filesystem conflicts (each teammate has its own checkout), but merge conflicts may still occur. The PM assesses overlap risk when organizing waves:
+  - **Low risk** (independent additions — e.g., two new files in the same directory): OK in the same wave.
+  - **Medium risk** (same area — e.g., two tasks adding different routes to the same router file): prefer sequential waves.
+  - **High risk** (same function/component — e.g., two tasks modifying the same React component or utility): must be in sequential waves.
 - A wave only starts after the previous wave is **fully complete and verified**.
 - The PM is responsible for analyzing task dependencies and organizing waves.
 - Wave organization is documented in `.planning/STATE.md` so it survives session resets.
@@ -350,18 +361,33 @@ Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in Claude Code settings. The PM 
 **Concrete Agent Teams workflow:**
 1. `TeamCreate` — create the team at the start of each milestone (or reuse an existing one).
 2. `TaskCreate` — create tasks in the team's shared task list for each issue in the wave.
-3. `Task` tool with `team_name` — spawn one teammate per task. **All Task tool calls for a wave go in a single message** so they launch in parallel. Give each teammate a descriptive `name` (e.g., `developer-auth`, `developer-api`, `devops-ci`).
-4. Teammates execute independently — they have their own context window, read CLAUDE.md automatically, create branches, implement, test, commit.
-5. Teammates report back via `SendMessage` to the PM. PM receives messages automatically.
-6. PM verifies the wave: pulls branches, runs full test suite, merges to `develop`, updates STATE.md.
-7. **Shut down all teammates from the completed wave** via `SendMessage` (type: `shutdown_request`) before spawning the next wave. Do not let idle teammates accumulate.
-8. Repeat for next wave.
-9. At milestone end, shut down ALL remaining teammates and call `TeamDelete`. The next milestone starts with a fresh `TeamCreate`.
+3. **Create worktrees** — before spawning any teammates, create a git worktree for each task in the wave:
+   ```bash
+   WORKTREE_ROOT="../$(basename $(pwd))-worktrees"
+   mkdir -p "$WORKTREE_ROOT"
+   # For each task's branch:
+   git worktree add "$WORKTREE_ROOT/feat-auth" -b feat/auth develop
+   git worktree add "$WORKTREE_ROOT/feat-api" -b feat/api develop
+   # Install dependencies in each worktree if needed:
+   cd "$WORKTREE_ROOT/feat-auth" && npm install && cd -
+   ```
+4. `Task` tool with `team_name` — spawn one teammate per task. **All Task tool calls for a wave go in a single message** so they launch in parallel. Give each teammate a descriptive `name` (e.g., `developer-auth`, `developer-api`, `devops-ci`). **Include the worktree path in each teammate's handoff** with instructions to `cd` there first and NOT commit `.planning/` file changes.
+5. Teammates execute independently — they have their own context window, read CLAUDE.md automatically, work in their assigned worktree, implement, test, commit.
+6. Teammates report back via `SendMessage` to the PM. PM receives messages automatically. Teammates report learnings via `SendMessage`; the PM aggregates them into LEARNINGS.md.
+7. PM verifies the wave: merges branches to `develop`, runs full test suite, updates STATE.md. **Clean up worktrees after merge:**
+   ```bash
+   git worktree remove "$WORKTREE_ROOT/feat-auth"
+   git branch -d feat/auth
+   git worktree prune
+   ```
+8. **Shut down all teammates from the completed wave** via `SendMessage` (type: `shutdown_request`) before spawning the next wave. Do not let idle teammates accumulate.
+9. Repeat for next wave.
+10. At milestone end, shut down ALL remaining teammates and call `TeamDelete`. Remove any remaining worktrees and the worktree root directory if empty. The next milestone starts with a fresh `TeamCreate`.
 
 Key considerations for Agent Teams:
 - **Token cost scales linearly** — a 5-teammate team burns ~5x the tokens of a single session. This reinforces the inverted review default: spawn 3 reviewers for sensitive changes, but don't spin up a full team for a CSS fix.
 - **No session resumption** — `/resume` and `/rewind` don't restore teammates. Your `.planning/` files are the only persistence layer. This is by design — it forces the discipline of file-based state.
-- **File conflicts are real** — two teammates writing the same file simultaneously = last-write-wins. Wave planning with file-independence checks prevents this.
+- **Worktree isolation prevents filesystem conflicts** — each teammate works in its own git worktree, eliminating last-write-wins. Merge conflicts may still occur when branches are merged to `develop`, but the PM resolves these during the merge step.
 - **Keep coordination through the PM.** Agent Teams supports direct teammate messaging, but this playbook routes all coordination through the PM for traceability (see Communication Protocol).
 
 **Tier 2 — Sub-agents via Task tool (fallback)**
@@ -1065,39 +1091,53 @@ For **each task**, the PM spawns a teammate via Agent Teams with a clean context
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  PM prepares the teammate handoff (Task tool with team_name):    │
+│  PM prepares worktrees + teammate handoff:                       │
+│                                                                  │
+│  Before spawning (PM creates worktree in main repo):             │
+│  - git worktree add "../<project>-worktrees/feat-<issue>"        │
+│    -b feat/<issue> develop                                       │
+│  - Install dependencies in worktree if needed                    │
+│                                                                  │
+│  Handoff (Task tool with team_name):                             │
+│  - Worktree path (teammate cd's here first)                      │
 │  - Task description + acceptance criteria                        │
 │  - Relevant source files (ONLY what's needed for this task)      │
 │  - CLAUDE.md (loaded automatically by Agent Teams)               │
 │  - Relevant section of ARCHITECTURE.md                           │
 │  - .planning/LEARNINGS.md (or relevant excerpts)                 │
 │  - .planning/DECISIONS.md                                        │
+│  - "Do NOT modify/commit .planning/ files"                       │
 │                                                                  │
 │  Teammate executes (with fresh, independent context window):     │
-│  1. Creates a feature branch (feat/<issue>)                      │
-│  2. Implements the feature                                       │
-│  3. Writes/updates tests (unit + integration)                    │
-│  4. Runs ALL tests (not just new ones)                           │
-│  5. If tests fail → fixes before proceeding                      │
-│  6. Updates documentation if behavior changed                    │
-│  7. Commits with conventional commit message                     │
+│  1. cd to assigned worktree, verify branch                       │
+│  2. Install dependencies if not already done                     │
+│  3. Implements the feature                                       │
+│  4. Writes/updates tests (unit + integration)                    │
+│  5. Runs ALL tests (not just new ones)                           │
+│  6. If tests fail → fixes before proceeding                      │
+│  7. Updates documentation if behavior changed                    │
+│  8. Commits with conventional commit message                     │
+│  ⚠️ Do NOT modify or commit .planning/ files                     │
 │                                                                  │
 │  Teammate reports back to PM via SendMessage:                    │
 │  - Summary of what was done                                      │
 │  - Files changed                                                 │
 │  - Tests added/modified                                          │
-│  - Learnings appended to .planning/LEARNINGS.md (if any)         │
+│  - Learnings (PM aggregates into LEARNINGS.md after wave)        │
 │  - Concerns ONLY if they require human escalation                │
 │                                                                  │
 │  PM triggers review:                                             │
-│  8. DEFAULT (most tasks): PM does a lightweight review —         │
+│  9. DEFAULT (most tasks): PM does a lightweight review —         │
 │     quick architecture + security check in the same context.     │
-│  9. SENSITIVE tasks (auth, AI, data handling, API contracts):    │
+│ 10. SENSITIVE tasks (auth, AI, data handling, API contracts):    │
 │     PM spawns separate Architect, Security, and QA teammates.    │
-│ 10. If reviewer requests changes → PM sends feedback to a        │
+│ 11. If reviewer requests changes → PM sends feedback to a        │
 │     Developer teammate via SendMessage (no human needed)         │
-│ 11. Review passes → PM merges to develop                         │
-│ 12. PM updates .planning/STATE.md, closes GitHub issue            │
+│ 12. Review passes → PM merges to develop, cleans up worktree:    │
+│     git worktree remove "../<project>-worktrees/feat-<issue>"    │
+│     git branch -d feat/<issue>                                   │
+│     git worktree prune                                           │
+│ 13. PM updates .planning/STATE.md, closes GitHub issue            │
 │     (`gh issue close <number>`) — moves to Done on project board │
 └──────────────────────────────────────────────────────────────────┘
 ```

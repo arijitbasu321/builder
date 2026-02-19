@@ -13,20 +13,23 @@ PM / Team Lead (Orchestrator) — stays light, delegates everything via Agent Te
 │
 ├── TeamCreate → set up the team at the start of the milestone
 │
-├── Wave N: Spawn ALL teammates simultaneously
-│   ├── Teammate A (Developer) → Task → commit → report back  ┐
-│   ├── Teammate B (Developer) → Task → commit → report back  ├── spawned in one message
-│   └── Teammate C (DevOps)    → Task → commit → report back  ┘
+├── Wave N:
+│   ├── PM creates worktrees for each task branch
+│   ├── PM spawns ALL teammates simultaneously (one message)
+│   │   ├── Teammate A (Developer) → worktree → commit → report back  ┐
+│   │   ├── Teammate B (Developer) → worktree → commit → report back  ├── spawned together
+│   │   └── Teammate C (DevOps)    → worktree → commit → report back  ┘
+│   └── PM merges branches, cleans up worktrees
 │
 ├── PM collects results via SendMessage, verifies wave, updates STATE.md
 │
 ├── ... repeat for each wave ...
 │
-├── Final Wave: Verification (3 teammates, spawned simultaneously)
+├── Final Wave: Verification (3 teammates, spawned simultaneously, each in worktree)
 │   ├── Teammate (QA) → Truth Condition Tests                   ┐
 │   ├── Teammate (Security) → Security review                   ├── spawned in one message
 │   └── Teammate (QA-Exploratory) → Exploratory testing         ┘
-└── PM runs truth condition check → Milestone checkpoint
+└── PM runs truth condition check → Milestone checkpoint → clean up all worktrees
 ```
 
 ## Agent Teams Parallel Dispatch (Non-Negotiable)
@@ -35,10 +38,19 @@ You MUST use Claude Code's native Agent Teams to parallelize wave execution. Thi
 
 **Required workflow:**
 1. At the start of each milestone, call `TeamCreate` to set up the team.
-2. For each wave, spawn all teammates simultaneously — use multiple `Task` tool calls with `team_name` in a **single message**. Each teammate gets one task, a name matching its role (e.g., `developer-1`, `developer-2`, `qa`, `security`), and the handoff context described in the Task Loop below.
-3. Teammates execute in parallel with their own independent context windows, CLAUDE.md, and MCP servers.
-4. PM monitors via `SendMessage` and collects results. When all teammates report back, verify the wave and move to the next.
-5. **After a wave completes, shut down all teammates from that wave** via `SendMessage` (type: `shutdown_request`) before spawning the next wave. Do not let idle teammates accumulate across waves.
+2. For each wave, **create worktrees before spawning teammates**:
+   ```bash
+   WORKTREE_ROOT="../$(basename $(pwd))-worktrees"
+   mkdir -p "$WORKTREE_ROOT"
+   git worktree add "$WORKTREE_ROOT/feat-issue-1" -b feat/issue-1 develop
+   git worktree add "$WORKTREE_ROOT/feat-issue-2" -b feat/issue-2 develop
+   # Install dependencies if needed:
+   cd "$WORKTREE_ROOT/feat-issue-1" && npm install && cd -
+   ```
+3. Spawn all teammates simultaneously — use multiple `Task` tool calls with `team_name` in a **single message**. Each teammate gets one task, a name matching its role (e.g., `developer-1`, `developer-2`, `qa`, `security`), **the worktree path** (teammate `cd`s there first), instructions to NOT commit `.planning/` changes, and the handoff context described in the Task Loop below.
+4. Teammates execute in parallel in their isolated worktrees with their own independent context windows, CLAUDE.md, and MCP servers.
+5. PM monitors via `SendMessage` and collects results. When all teammates report back, merge branches to `develop`, clean up worktrees (`git worktree remove`, `git branch -d`, `git worktree prune`), verify the wave, and move to the next.
+6. **After a wave completes, shut down all teammates from that wave** via `SendMessage` (type: `shutdown_request`) before spawning the next wave. Do not let idle teammates accumulate across waves.
 
 **⚠️ Teammate cap: maximum 5 teammates per wave.** If a wave has more than 5 tasks, split it into sub-waves of ≤5 and run them sequentially. This prevents token burn, rate-limit hits, and context degradation. The cap applies to ALL teammate types combined (developers + QA + security + devops).
 
@@ -65,35 +77,44 @@ Just do it. The human approved the wave plan in Phase 3. Execute it.
 ## Task Loop (for each task)
 
 **Handoff to worker:**
+- **Worktree path** — teammate `cd`s here first (e.g., `../<project>-worktrees/feat-issue-7`)
 - Task description + acceptance criteria
 - Relevant source files (ONLY what's needed)
 - CLAUDE.md (golden rules, tech stack)
 - Relevant section of ARCHITECTURE.md
 - .planning/LEARNINGS.md (or relevant excerpts)
 - .planning/DECISIONS.md
+- **"Do NOT modify or commit .planning/ files"** — report learnings via SendMessage instead
 - For DevOps/infra tasks: the Deployment Topology section of ARCHITECTURE.md (non-negotiable — no infra task executes without the full topology as context)
 
 **Worker executes:**
-1. Creates feature branch (`feat/<issue>`)
-2. Implements the feature
-3. Writes/updates tests (unit + integration)
-4. Runs ALL tests (not just new ones)
-5. If tests fail → fixes before proceeding
-6. Updates documentation if behavior changed
-6b. If the task modified AI prompts: runs prompt eval against golden dataset, verifies no regression
-7. Commits with conventional commit message
+1. `cd` to assigned worktree path, verify correct branch
+2. Install dependencies if not already done (e.g., `npm install`)
+3. Implements the feature
+4. Writes/updates tests (unit + integration)
+5. Runs ALL tests (not just new ones)
+6. If tests fail → fixes before proceeding
+7. Updates documentation if behavior changed
+7b. If the task modified AI prompts: runs prompt eval against golden dataset, verifies no regression
+8. Commits with conventional commit message
+9. **Do NOT modify or commit `.planning/` files** — report learnings via SendMessage
 
 **Worker reports back:**
 - Summary of what was done
 - Files changed
 - Tests added/modified
-- Learnings appended to .planning/LEARNINGS.md (if any)
+- Learnings reported via SendMessage (PM aggregates into LEARNINGS.md after wave)
 
 **Review:**
 - **DEFAULT (most tasks):** PM does a lightweight review — quick architecture + security check in one pass.
 - **SENSITIVE tasks (auth, AI, data handling, API contracts):** Spawn separate Architect, Security, and QA reviewers.
 - If changes requested → new worker gets feedback and fixes.
-- Review passes → PM merges to `develop`, updates STATE.md, closes the GitHub issue (`gh issue close <number>`) which automatically moves it to Done on the project board.
+- Review passes → PM merges to `develop`, cleans up the worktree, updates STATE.md, closes the GitHub issue (`gh issue close <number>`) which automatically moves it to Done on the project board.
+  ```bash
+  git worktree remove "$WORKTREE_ROOT/feat-issue-N"
+  git branch -d feat/issue-N
+  git worktree prune
+  ```
 
 **When human input is needed during build (e.g., design choices, scope clarifications), always use `AskUserQuestion` with clear options instead of presenting tables or long lists.**
 
@@ -185,9 +206,27 @@ If ANY step fails, fix and re-validate. Do not proceed to verification wave with
 
 ## Team Cleanup (Non-Negotiable)
 
-**Between waves:** After collecting all results and verifying a wave, send `shutdown_request` to every teammate from that wave before spawning the next wave's teammates. Idle teammates waste tokens and count against rate limits.
+**Between waves:** After collecting all results and verifying a wave:
+1. Send `shutdown_request` to every teammate from that wave before spawning the next wave's teammates. Idle teammates waste tokens and count against rate limits.
+2. Remove worktrees for all merged branches and prune:
+   ```bash
+   git worktree remove "$WORKTREE_ROOT/feat-issue-N"
+   git branch -d feat/issue-N
+   git worktree prune
+   ```
 
-**At milestone end:** After the milestone checkpoint is approved, shut down ALL remaining teammates and call `TeamDelete` to clean up the team. The next milestone starts with a fresh `TeamCreate`.
+**At milestone end:** After the milestone checkpoint is approved:
+1. Shut down ALL remaining teammates and call `TeamDelete` to clean up the team.
+2. Remove any remaining worktrees:
+   ```bash
+   # Remove all worktrees created for this milestone
+   git worktree list  # check for any remaining
+   git worktree remove "$WORKTREE_ROOT/<branch>"  # for each remaining
+   git worktree prune
+   # Remove worktree root directory if empty
+   rmdir "$WORKTREE_ROOT" 2>/dev/null || true
+   ```
+3. The next milestone starts with a fresh `TeamCreate`.
 
 **If a teammate is unresponsive:** If a teammate doesn't respond to `shutdown_request` within a reasonable time, proceed — don't block the next wave waiting for a clean shutdown.
 

@@ -55,7 +55,10 @@ For each milestone, organize issues into **waves**:
 
 1. Analyze dependencies — which tasks are independent? Which depend on others?
 2. Group into waves — independent tasks in the same wave, dependent tasks in later waves.
-3. **No two tasks in the same wave may modify the same file** (prevents parallel write conflicts).
+3. **Same-file overlap is risk-assessed** (worktree isolation prevents filesystem conflicts, but merge conflicts may still occur):
+   - **Low risk** (independent additions — e.g., two new files in the same directory): OK in the same wave.
+   - **Medium risk** (same area — e.g., two tasks adding different API routes to the same router file): prefer sequential waves.
+   - **High risk** (same function/component — e.g., two tasks modifying the same React component or utility): must be in sequential waves.
 4. **Maximum 5 tasks per wave.** If more than 5 independent tasks exist, split into sub-waves of ≤5. This caps concurrent teammates to prevent token burn and rate-limit hits.
 5. Final wave of each milestone is always **verification** (QA + Security review).
 6. Each wave entry: `- [ ] #7 — Build POST /api/auth/register endpoint`
